@@ -50,6 +50,10 @@ public const string ClaimsUpdate = "claims:update";
     public const string RolesRead = "roles:read";
     public const string RolesManage = "roles:manage";
 
+  // ---- Review workflow (claim routing, QA, reviewer teams) ----
+    public const string ReviewsSupervise = "reviews:supervise";
+    public const string ReviewsManage = "reviews:manage";
+
   // ---- Audit ----
     public const string AuditRead = "audit:read";
 
@@ -89,6 +93,9 @@ public const string ClaimsUpdate = "claims:update";
         (UsersManage, "AccessControl", "manage", "Create, edit and deactivate users"),
         (RolesRead, "AccessControl", "read", "View roles and permissions"),
         (RolesManage, "AccessControl", "manage", "Create roles and grant permissions"),
+
+        (ReviewsSupervise, "Reviews", "supervise", "Assign claims to reviewers, run QA reviews and view team metrics"),
+        (ReviewsManage, "Reviews", "manage", "Manage supervisor/reviewer teams and view department metrics"),
 
         (AuditRead, "Audit", "read", "View audit logs")
     ];

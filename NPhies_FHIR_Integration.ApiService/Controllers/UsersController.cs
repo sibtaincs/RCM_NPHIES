@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NPhies_FHIR_Integration.ApiService.Security;
+using NPhies_FHIR_Integration.ApiService.Security.Authorization;
 using NPhies_FHIR_Integration.ApiService.Security.Services;
 using NPhies_FHIR_Integration.Domain.Entities;
 using NPhies_FHIR_Integration.Infrastructure.Data.Configurations;
@@ -9,11 +10,13 @@ using NPhies_FHIR_Integration.Infrastructure.Data.Configurations;
 namespace NPhies_FHIR_Integration.ApiService.Controllers;
 
 /// <summary>
-/// Admin-only user management: create users, assign roles, lock/unlock, reset passwords.
+/// User management: create users, assign roles, lock/unlock, reset passwords.
+/// Reads need <c>users:read</c>; changes need <c>users:manage</c>. Only an Admin may create, change or
+/// grant the Admin role to administrator accounts, so <c>users:manage</c> cannot be used to escalate to Admin.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = SecurityConstants.ADMIN_ROLE)]
+[Authorize]
 [Produces("application/json")]
 public class UsersController : ControllerBase
 {
@@ -54,6 +57,7 @@ public class UsersController : ControllerBase
     /// Sourced from the data-driven AppRoles catalogue so custom roles are included.
     /// </summary>
     [HttpGet("roles")]
+    [HasPermission(Permissions.UsersRead)]
     [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetRoles()
     {
@@ -72,6 +76,7 @@ public class UsersController : ControllerBase
     /// Paged list of users with optional search over username/email/name.
     /// </summary>
     [HttpGet]
+    [HasPermission(Permissions.UsersRead)]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUsers(
         [FromQuery] int skip = 0,
@@ -105,6 +110,7 @@ public class UsersController : ControllerBase
     /// Get a single user by id.
     /// </summary>
     [HttpGet("{id}")]
+    [HasPermission(Permissions.UsersRead)]
     [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetUser(string id)
@@ -121,6 +127,7 @@ public class UsersController : ControllerBase
     /// Create a new user with the given roles.
     /// </summary>
     [HttpPost]
+    [HasPermission(Permissions.UsersManage)]
     [ProducesResponseType(typeof(UserDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
@@ -132,6 +139,8 @@ public class UsersController : ControllerBase
         var unknownRoles = dto.Roles!.Where(r => !assignable.Contains(r)).ToList();
         if (unknownRoles.Count > 0)
       return BadRequest(new { message = $"Unknown role(s): {string.Join(", ", unknownRoles)}" });
+
+        if (!CanManageAdminAccounts(dto.Roles!)) return Forbid();
 
         var exists = await _dbContext.Users
        .AnyAsync(u => u.Username == dto.Username || u.Email == dto.Email);
@@ -169,12 +178,14 @@ public class UsersController : ControllerBase
     /// Update a user's profile details and roles.
     /// </summary>
     [HttpPut("{id}")]
+    [HasPermission(Permissions.UsersManage)]
     [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateUser(string id, [FromBody] UpdateUserDto dto)
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id && u.DeletedAt == null);
         if (user is null) return NotFound(new { message = $"User {id} not found" });
+        if (!CanManageAdminAccounts(user.Roles.Concat(dto.Roles ?? []))) return Forbid();
 
         if (dto.Roles is not null)
         {
@@ -211,11 +222,13 @@ public class UsersController : ControllerBase
     /// Activate or deactivate a user.
     /// </summary>
     [HttpPost("{id}/set-active")]
+    [HasPermission(Permissions.UsersManage)]
     [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> SetActive(string id, [FromQuery] bool isActive)
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id && u.DeletedAt == null);
         if (user is null) return NotFound(new { message = $"User {id} not found" });
+        if (!CanManageAdminAccounts(user.Roles)) return Forbid();
 
         if (!isActive && await IsLastAdminAsync(user.Id) && user.Roles.Contains(SecurityConstants.ADMIN_ROLE))
             return BadRequest(new { message = "Cannot deactivate the last administrator." });
@@ -231,11 +244,13 @@ public class UsersController : ControllerBase
     /// Clear a lockout and reset the failed-attempt counter.
     /// </summary>
     [HttpPost("{id}/unlock")]
+    [HasPermission(Permissions.UsersManage)]
     [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> Unlock(string id)
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id && u.DeletedAt == null);
         if (user is null) return NotFound(new { message = $"User {id} not found" });
+        if (!CanManageAdminAccounts(user.Roles)) return Forbid();
 
         user.IsLocked = false;
         user.LockedUntilAt = null;
@@ -250,6 +265,7 @@ public class UsersController : ControllerBase
     /// Set a new password for a user and revoke their active sessions.
     /// </summary>
     [HttpPost("{id}/reset-password")]
+    [HasPermission(Permissions.UsersManage)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResetPassword(string id, [FromBody] ResetPasswordDto dto)
@@ -265,6 +281,7 @@ public class UsersController : ControllerBase
 
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id && u.DeletedAt == null);
         if (user is null) return NotFound(new { message = $"User {id} not found" });
+        if (!CanManageAdminAccounts(user.Roles)) return Forbid();
 
         var (hash, salt) = _passwordHasher.HashPassword(dto.NewPassword);
         user.PasswordHash = hash;
@@ -292,11 +309,13 @@ public class UsersController : ControllerBase
     /// Soft-delete a user.
     /// </summary>
     [HttpDelete("{id}")]
+    [HasPermission(Permissions.UsersManage)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteUser(string id)
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id && u.DeletedAt == null);
         if (user is null) return NotFound(new { message = $"User {id} not found" });
+        if (!CanManageAdminAccounts(user.Roles)) return Forbid();
 
         if (await IsLastAdminAsync(user.Id) && user.Roles.Contains(SecurityConstants.ADMIN_ROLE))
             return BadRequest(new { message = "Cannot delete the last administrator." });
@@ -326,6 +345,11 @@ public class UsersController : ControllerBase
     ? new HashSet<string>(roles, StringComparer.OrdinalIgnoreCase)
      : new HashSet<string>(AllRoles, StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <summary>Only Admins may act on accounts that hold, or would be granted, the Admin role.</summary>
+    private bool CanManageAdminAccounts(IEnumerable<string> roles) =>
+        User.IsInRole(SecurityConstants.ADMIN_ROLE) ||
+        !roles.Contains(SecurityConstants.ADMIN_ROLE, StringComparer.OrdinalIgnoreCase);
 
     private async Task<bool> IsLastAdminAsync(string excludingUserId)
     {

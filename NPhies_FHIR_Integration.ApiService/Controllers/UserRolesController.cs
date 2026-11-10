@@ -1,3 +1,5 @@
+using NPhies_FHIR_Integration.ApiService.Security;
+using NPhies_FHIR_Integration.ApiService.Security.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -98,7 +100,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
         /// Assign role to user
  /// </summary>
         [HttpPost("assign")]
-    [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+    [HasPermission(Permissions.UsersManage)]
         [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
      public async Task<IActionResult> AssignRoleToUser([FromBody] AssignRoleDto dto)
@@ -126,7 +128,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
   /// Remove role from user
    /// </summary>
         [HttpPost("remove")]
- [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+ [HasPermission(Permissions.UsersManage)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
       public async Task<IActionResult> RemoveRoleFromUser([FromBody] AssignRoleDto dto)
@@ -151,7 +153,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
         /// Change user's primary role
    /// </summary>
        [HttpPost("change-primary")]
-      [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+      [HasPermission(Permissions.UsersManage)]
   [ProducesResponseType(StatusCodes.Status200OK)]
    [ProducesResponseType(StatusCodes.Status400BadRequest)]
        public async Task<IActionResult> ChangePrimaryRole([FromBody] AssignRoleDto dto)

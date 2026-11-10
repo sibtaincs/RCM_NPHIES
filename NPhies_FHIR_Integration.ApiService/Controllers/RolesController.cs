@@ -1,3 +1,5 @@
+using NPhies_FHIR_Integration.ApiService.Security;
+using NPhies_FHIR_Integration.ApiService.Security.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -144,7 +146,7 @@ new { message = "Error retrieving role", error = ex.Message });
      /// Create a new role
         /// </summary>
         [HttpPost]
-        [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.RolesManage)]
         [ProducesResponseType(typeof(RoleDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -171,7 +173,7 @@ return CreatedAtAction(nameof(GetRoleById), new { id = role.Id }, role);
         /// Update a role
         /// </summary>
         [HttpPut("{id}")]
-        [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.RolesManage)]
         [ProducesResponseType(typeof(RoleDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -203,7 +205,7 @@ return CreatedAtAction(nameof(GetRoleById), new { id = role.Id }, role);
 /// Delete a role
       /// </summary>
         [HttpDelete("{id}")]
-        [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.RolesManage)]
  [ProducesResponseType(StatusCodes.Status204NoContent)]
  [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -234,7 +236,7 @@ return CreatedAtAction(nameof(GetRoleById), new { id = role.Id }, role);
 /// Assign permission to role
         /// </summary>
         [HttpPost("{roleId}/permissions/{permissionId}")]
-   [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+   [HasPermission(Permissions.RolesManage)]
         [ProducesResponseType(StatusCodes.Status200OK)]
       [ProducesResponseType(StatusCodes.Status404NotFound)]
    public async Task<IActionResult> AssignPermissionToRole(int roleId, int permissionId)
@@ -259,7 +261,7 @@ return CreatedAtAction(nameof(GetRoleById), new { id = role.Id }, role);
      /// Remove permission from role
         /// </summary>
  [HttpDelete("{roleId}/permissions/{permissionId}")]
-  [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+  [HasPermission(Permissions.RolesManage)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemovePermissionFromRole(int roleId, int permissionId)

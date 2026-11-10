@@ -1,3 +1,5 @@
+using NPhies_FHIR_Integration.ApiService.Security;
+using NPhies_FHIR_Integration.ApiService.Security.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -31,7 +33,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
         /// Get audit logs for a user
     /// </summary>
         [HttpGet("user/{userId}")]
-        [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.AuditRead)]
      [ProducesResponseType(typeof(List<PermissionAuditLogDto>), StatusCodes.Status200OK)]
        [ProducesResponseType(StatusCodes.Status404NotFound)]
      public async Task<ActionResult<List<PermissionAuditLogDto>>> GetUserAuditLogs(int userId)
@@ -54,7 +56,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
   /// Get audit logs for a resource
   /// </summary>
  [HttpGet("resource/{resourceType}/{resourceId}")]
-      [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+      [HasPermission(Permissions.AuditRead)]
        [ProducesResponseType(typeof(List<PermissionAuditLogDto>), StatusCodes.Status200OK)]
        public async Task<ActionResult<List<PermissionAuditLogDto>>> GetResourceAuditLogs(string resourceType, int resourceId)
       {
@@ -75,15 +77,15 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
  /// <summary>
       /// Get audit logs by action
     /// </summary>
-   [HttpGet("action/{action}")]
-  [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+   [HttpGet("action/{actionName}")]
+  [HasPermission(Permissions.AuditRead)]
  [ProducesResponseType(typeof(List<PermissionAuditLogDto>), StatusCodes.Status200OK)]
-  public async Task<ActionResult<List<PermissionAuditLogDto>>> GetAuditLogsByAction(string action)
+  public async Task<ActionResult<List<PermissionAuditLogDto>>> GetAuditLogsByAction(string actionName)
    {
 try
        {
-     _logger.LogInformation("Getting audit logs for action {Action}", action);
-    var logs = await _auditService.GetAuditLogsByActionAsync(action);
+     _logger.LogInformation("Getting audit logs for action {Action}", actionName);
+    var logs = await _auditService.GetAuditLogsByActionAsync(actionName);
         return Ok(logs);
  }
          catch (Exception ex)
@@ -98,7 +100,7 @@ _logger.LogError(ex, "Error getting audit logs by action");
         /// Get audit logs by date range
         /// </summary>
  [HttpGet("range")]
-        [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.AuditRead)]
  [ProducesResponseType(typeof(List<PermissionAuditLogDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<PermissionAuditLogDto>>> GetAuditLogsByDateRange(
      [FromQuery] DateTime fromDate,
@@ -125,7 +127,7 @@ _logger.LogError(ex, "Error getting audit logs by action");
       /// Get unauthorized access attempts (last 30 days by default)
   /// </summary>
  [HttpGet("unauthorized-attempts")]
-[Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+[HasPermission(Permissions.AuditRead)]
      [ProducesResponseType(typeof(List<PermissionAuditLogDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<PermissionAuditLogDto>>> GetUnauthorizedAccessAttempts([FromQuery] int days = 30)
   {
@@ -150,7 +152,7 @@ _logger.LogError(ex, "Error getting audit logs by action");
       /// Get high-risk actions
   /// </summary>
     [HttpGet("high-risk-actions")]
- [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+ [HasPermission(Permissions.AuditRead)]
         [ProducesResponseType(typeof(List<PermissionAuditLogDto>), StatusCodes.Status200OK)]
        public async Task<ActionResult<List<PermissionAuditLogDto>>> GetHighRiskActions()
        {
@@ -172,7 +174,7 @@ _logger.LogError(ex, "Error getting audit logs by action");
         /// Get compliance summary report
    /// </summary>
     [HttpGet("compliance-summary")]
-  [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+  [HasPermission(Permissions.AuditRead)]
        [ProducesResponseType(typeof(ComplianceSummaryDto), StatusCodes.Status200OK)]
   public async Task<ActionResult<ComplianceSummaryDto>> GetComplianceSummary([FromQuery] int days = 30)
    {

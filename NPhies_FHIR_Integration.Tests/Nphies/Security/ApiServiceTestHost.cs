@@ -29,9 +29,9 @@ public sealed class ApiServiceTestHost : IDisposable
     public IServiceProvider Services => Host.Services;
     public Uri BaseAddress { get; }
 
-    private ApiServiceTestHost(string environment)
+    private ApiServiceTestHost(string environment, Action<IServiceCollection>? configureServices)
     {
-        var capture = new HostCapture();
+        var capture = new HostCapture(configureServices);
         using var subscription = DiagnosticListener.AllListeners.Subscribe(capture);
 
         var args = new[]
@@ -87,7 +87,9 @@ public sealed class ApiServiceTestHost : IDisposable
         BaseAddress = new Uri(address);
     }
 
-    public static ApiServiceTestHost Start(string environment = "Development") => new(environment);
+    /// <param name="configureServices">Optional test overrides applied after the application's own registrations.</param>
+    public static ApiServiceTestHost Start(string environment = "Development", Action<IServiceCollection>? configureServices = null)
+        => new(environment, configureServices);
 
     public HttpClient CreateClient() => new() { BaseAddress = BaseAddress, Timeout = TimeSpan.FromSeconds(30) };
 
@@ -100,6 +102,10 @@ public sealed class ApiServiceTestHost : IDisposable
     private sealed class HostCapture : IObserver<DiagnosticListener>, IObserver<KeyValuePair<string, object?>>, IDisposable
     {
         private readonly List<IDisposable> _subscriptions = new();
+        private readonly Action<IServiceCollection>? _configureServices;
+
+        public HostCapture(Action<IServiceCollection>? configureServices) => _configureServices = configureServices;
+
         public TaskCompletionSource<IHost> HostBuilt { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public void OnNext(DiagnosticListener listener)
@@ -119,6 +125,7 @@ public sealed class ApiServiceTestHost : IDisposable
                     services.AddSingleton<IRateLimitingService, NoopRateLimitingService>();
                     services.RemoveAll<IAuditLoggingService>();
                     services.AddSingleton<IAuditLoggingService, NoopAuditLoggingService>();
+                    _configureServices?.Invoke(services);
                 });
 
             if (value.Key == "HostBuilt" && value.Value is IHost host)

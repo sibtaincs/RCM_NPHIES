@@ -72,7 +72,8 @@ public sealed class RcmDocumentsController : RcmControllerBase
 
     /// <summary>Admin: moves legacy inline base64 attachments (ClaimSupportingInfo.AttachmentData) into the document store.</summary>
     [HttpPost("migrate-inline")]
-    [Authorize(Roles = SecurityConstants.ADMIN_ROLE)]
+    [HasPermission(Permissions.ClaimsUpdate)]
+    [HasPermission(Permissions.MasterDataManage)]
     public async Task<ActionResult<DocumentMigrationResultDto>> MigrateInline([FromQuery] int max = 200, CancellationToken ct = default)
         => Ok(await _service.MigrateInlineAttachmentsAsync(max, ProviderScope(), ct));
 }
