@@ -1,0 +1,909 @@
+{
+	"resourceType": "Bundle",
+	"id": "9e4dbafa-1263-407d-ba38-f8879b0b7368",
+	"meta": {
+		"profile": [
+			"http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/bundle|1.0.0"
+		]
+	},
+	"type": "message",
+	"timestamp": "2021-08-30T09:20:15.23+03:00",
+	"entry": [
+		{
+			"fullUrl": "urn:uuid:a7e4caf2-0441-40e5-97d2-5ae180277368",
+			"resource": {
+				"resourceType": "MessageHeader",
+				"id": "a7e4caf2-0441-40e5-97d2-5ae180277368",
+				"meta": {
+					"profile": [
+						"http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/message-header|1.0.0"
+					]
+				},
+				"eventCoding": {
+					"system": "http://nphies.sa/terminology/CodeSystem/ksa-message-events",
+					"code": "claim-request"
+				},
+				"destination": [
+					{
+						"endpoint": "http://nphies.sa/license/payer-license/N-I-00001",
+						"receiver": {
+							"type": "Organization",
+							"identifier": {
+								"system": "http://nphies.sa/license/payer-license",
+								"value": "N-I-00001"
+							}
+						}
+					}
+				],
+				"sender": {
+					"type": "Organization",
+					"identifier": {
+						"system": "http://nphies.sa/license/provider-license",
+						"value": "N-F-00001"
+					}
+				},
+				"source": {
+					"endpoint": "http://sgh.sa.com"
+				},
+				"focus": [
+					{
+						"reference": "http://sgh.sa.com/Claim/487368"
+					}
+				]
+			}
+		},
+		{
+			"fullUrl": "http://sgh.sa.com/Claim/487368",
+			"resource": {
+				"resourceType": "Claim",
+				"id": "487368",
+				"meta": {
+					"profile": [
+						"http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/institutional-claim|1.0.0"
+					]
+				},
+				"extension": [
+					{
+						"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-episode",
+						"valueIdentifier": {
+							"system": "http://sgh.sa.com/episode",
+							"value": "SGH_EpisodeID_48903211"
+						}
+					}
+				],
+				"identifier": [
+					{
+						"system": "http://sgh.sa.com/claim",
+						"value": "req_112487368"
+					}
+				],
+				"status": "active",
+				"type": {
+					"coding": [
+						{
+							"system": "http://terminology.hl7.org/CodeSystem/claim-type",
+							"code": "institutional"
+						}
+					]
+				},
+				"subType": {
+					"coding": [
+						{
+							"system": "http://nphies.sa/terminology/CodeSystem/claim-subtype",
+							"code": "ip"
+						}
+					]
+				},
+				"use": "claim",
+				"patient": {
+					"reference": "http://sgh.com.sa/Patient/3662364643"
+				},
+				"created": "2021-08-30",
+				"insurer": {
+					"reference": "http://sgh.com.sa/Organization/bff3aa1fbd3648619ac082357bf135db"
+				},
+				"provider": {
+					"reference": "http://sgh.com.sa/Organization/b1b3432921324f97af3be9fd0b1a14ae"
+				},
+				"priority": {
+					"coding": [
+						{
+							"system": "http://terminology.hl7.org/CodeSystem/processpriority",
+							"code": "normal"
+						}
+					]
+				},
+				"payee": {
+					"type": {
+						"coding": [
+							{
+								"system": "http://terminology.hl7.org/CodeSystem/payeetype",
+								"code": "provider"
+							}
+						]
+					}
+				},
+				"careTeam": [
+					{
+						"sequence": 1,
+						"provider": {
+							"reference": "http://sgh.sa.com/Practitioner/7"
+						},
+						"role": {
+							"coding": [
+								{
+									"system": "http://terminology.hl7.org/CodeSystem/claimcareteamrole",
+									"code": "primary"
+								}
+							]
+						},
+						"qualification": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/practice-codes",
+									"code": "19.11"
+								}
+							]
+						}
+					}
+				],
+				"supportingInfo": [
+					{
+						"sequence": 1,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "vital-sign-systolic"
+								}
+							]
+						},
+						"valueQuantity": {
+							"value": 130,
+							"system": "http://unitsofmeasure.org",
+							"code": "mm[Hg]"
+						}
+					},
+					{
+						"sequence": 2,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "vital-sign-diastolic"
+								}
+							]
+						},
+						"valueQuantity": {
+							"value": 90,
+							"system": "http://unitsofmeasure.org",
+							"code": "mm[Hg]"
+						}
+					},
+					{
+						"sequence": 3,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "vital-sign-height"
+								}
+							]
+						},
+						"valueQuantity": {
+							"value": 160,
+							"system": "http://unitsofmeasure.org",
+							"code": "cm"
+						}
+					},
+					{
+						"sequence": 4,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "vital-sign-weight"
+								}
+							]
+						},
+						"valueQuantity": {
+							"value": 60,
+							"system": "http://unitsofmeasure.org",
+							"code": "kg"
+						}
+					},
+					{
+						"sequence": 5,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "chief-complaint"
+								}
+							]
+						},
+						"code": {
+							"coding": [
+								{
+									"system": "http://hl7.org/fhir/sid/icd-10-am",
+									"code": "C71.7"
+								}
+							],
+							"text": "Patient is suffering from Malignant neoplasm of brain stem"
+						}
+					},
+					{
+						"sequence": 6,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "icu-hours"
+								}
+							]
+						},
+						"valueQuantity": {
+							"value": 3,
+							"system": "http://unitsofmeasure.org",
+							"code": "h"
+						}
+					},
+					{
+						"sequence": 7,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "ventilation-hours"
+								}
+							]
+						},
+						"valueQuantity": {
+							"value": 1.5,
+							"system": "http://unitsofmeasure.org",
+							"code": "h"
+						}
+					},
+					{
+						"sequence": 8,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "temperature"
+								}
+							]
+						},
+						"valueQuantity": {
+							"value": 38,
+							"system": "http://unitsofmeasure.org",
+							"code": "Cel"
+						}
+					},
+					{
+						"sequence": 9,
+						"category": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/claim-information-category",
+									"code": "oxygen-saturation"
+								}
+							]
+						},
+						"valueQuantity": {
+							"value": 96,
+							"system": "http://unitsofmeasure.org",
+							"code": "%"
+						}
+					}
+				],
+				"diagnosis": [
+					{
+						"sequence": 1,
+						"onAdmission": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/diagnosis-on-admission",
+									"code": "y"
+								}
+							]
+						},
+						"diagnosisCodeableConcept": {
+							"coding": [
+								{
+									"system": "http://hl7.org/fhir/sid/icd-10-am",
+									"code": "C71.7"
+								}
+							]
+						},
+						"type": [
+							{
+								"coding": [
+									{
+										"system": "http://nphies.sa/terminology/CodeSystem/diagnosis-type",
+										"code": "principal"
+									}
+								]
+							}
+						]
+					}
+				],
+				"insurance": [
+					{
+						"sequence": 1,
+						"focal": true,
+						"coverage": {
+							"reference": "http://sgh.com.sa/Coverage/1333"
+						}
+					}
+				],
+				"item": [
+					{
+						"sequence": 1,
+						"informationSequence": [
+							1,
+							2,
+							3,
+							4,
+							5,
+							6,
+							7,
+							8,
+							9
+						],
+						"extension": [
+							{
+								"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-patient-share",
+								"valueMoney": {
+									"value": 4000,
+									"currency": "SAR"
+								}
+							},
+							{
+								"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-package",
+								"valueBoolean": true
+							},
+							{
+								"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-tax",
+								"valueMoney": {
+									"value": 2000,
+									"currency": "SAR"
+								}
+							},
+							{
+								"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-patientInvoice",
+								"valueIdentifier": {
+									"system": "http://sgh.com/patientInvoice",
+									"value": "Invc-20220120/IP-1110987"
+								}
+							}
+						],
+						"careTeamSequence": [
+							1
+						],
+						"productOrService": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/procedures",
+									"code": "40703-02-00",
+									"display": "Partial lobectomy of brain"
+								},
+								{
+									"system": "http://sgh.sa.com//procedures",
+									"code": "Brain001",
+									"display": "In-Patient (IP) Partial lobectomy of brain package"
+								}
+							]
+						},
+						"servicedDate": "2021-08-30",
+						"quantity": {
+							"value": 1
+						},
+						"unitPrice": {
+							"value": 18000,
+							"currency": "SAR"
+						},
+						"net": {
+							"value": 20000,
+							"currency": "SAR"
+						},
+						"detail": [
+							{
+								"sequence": 1,
+								"productOrService": {
+									"coding": [
+										{
+											"system": "http://nphies.sa/terminology/CodeSystem/laboratory",
+											"code": "73250-00-80",
+											"display": "BLOOD GROUP"
+										},
+										{
+											"system": "http://sgh.sa.com//procedures",
+											"code": "442",
+											"display": "Lab Blood group"
+										}
+									]
+								},
+								"quantity": {
+									"value": 1
+								},
+								"unitPrice": {
+									"value": 0,
+									"currency": "SAR"
+								},
+								"factor": 1,
+								"net": {
+									"value": 0,
+									"currency": "SAR"
+								}
+							},
+							{
+								"sequence": 2,
+								"productOrService": {
+									"coding": [
+										{
+											"system": "http://nphies.sa/terminology/CodeSystem/services",
+											"code": "83670-00-60",
+											"display": "Anesthesia Services Per Unit"
+										},
+										{
+											"system": "http://sgh.sa.com//procedures",
+											"code": "889",
+											"display": "Anesthesia"
+										}
+									]
+								},
+								"quantity": {
+									"value": 1
+								},
+								"unitPrice": {
+									"value": 0,
+									"currency": "SAR"
+								},
+								"factor": 1,
+								"net": {
+									"value": 0,
+									"currency": "SAR"
+								}
+							},
+							{
+								"sequence": 3,
+								"productOrService": {
+									"coding": [
+										{
+											"system": "http://nphies.sa/terminology/CodeSystem/procedures",
+											"code": "40703-02-00",
+											"display": "Elective Partial lobectomy of brain"
+										},
+										{
+											"system": "http://sgh.sa.com//procedures",
+											"code": "650",
+											"display": "Procedure fees"
+										}
+									]
+								},
+								"quantity": {
+									"value": 1
+								},
+								"unitPrice": {
+									"value": 0,
+									"currency": "SAR"
+								},
+								"factor": 1,
+								"net": {
+									"value": 0,
+									"currency": "SAR"
+								}
+							},
+							{
+								"sequence": 4,
+								"productOrService": {
+									"coding": [
+										{
+											"system": "http://nphies.sa/terminology/CodeSystem/procedures",
+											"code": "40703-02-00",
+											"display": "Computerised tomography of brain"
+										},
+										{
+											"system": "http://sgh.sa.com//procedures",
+											"code": "330",
+											"display": "Tomography of brain"
+										}
+									]
+								},
+								"quantity": {
+									"value": 1
+								},
+								"unitPrice": {
+									"value": 0,
+									"currency": "SAR"
+								},
+								"factor": 1,
+								"net": {
+									"value": 0,
+									"currency": "SAR"
+								}
+							},
+							{
+								"sequence": 5,
+								"productOrService": {
+									"coding": [
+										{
+											"system": "http://nphies.sa/terminology/CodeSystem/medication-codes",
+											"code": "06285097000049",
+											"display": "AUGMENTIN 1.2GM VIAL"
+										},
+										{
+											"system": "http://sgh.sa.com//procedures",
+											"code": "552",
+											"display": "Drug"
+										}
+									]
+								},
+								"quantity": {
+									"value": 1
+								},
+								"unitPrice": {
+									"value": 0,
+									"currency": "SAR"
+								},
+								"factor": 1,
+								"net": {
+									"value": 0,
+									"currency": "SAR"
+								}
+							},
+							{
+								"sequence": 6,
+								"productOrService": {
+									"coding": [
+										{
+											"system": "http://nphies.sa/terminology/CodeSystem/medical-devices",
+											"code": "47203",
+											"display": "Wound-nonadherent dressing, permeable, antimicrobial"
+										},
+										{
+											"system": "http://sgh.sa.com//procedures",
+											"code": "500",
+											"display": "Consumables"
+										}
+									]
+								},
+								"quantity": {
+									"value": 1
+								},
+								"unitPrice": {
+									"value": 0,
+									"currency": "SAR"
+								},
+								"factor": 1,
+								"net": {
+									"value": 0,
+									"currency": "SAR"
+								}
+							},
+							{
+								"sequence": 7,
+								"productOrService": {
+									"coding": [
+										{
+											"system": "http://nphies.sa/terminology/CodeSystem/services",
+											"code": "83610-01-00",
+											"display": "Room and Board: Per Diem - First Class Room"
+										},
+										{
+											"system": "http://sgh.sa.com//procedures",
+											"code": "011",
+											"display": "Room and Board"
+										}
+									]
+								},
+								"quantity": {
+									"value": 1
+								},
+								"unitPrice": {
+									"value": 0,
+									"currency": "SAR"
+								},
+								"factor": 1,
+								"net": {
+									"value": 0,
+									"currency": "SAR"
+								}
+							}
+						]
+					},
+					{
+						"sequence": 2,
+						"informationSequence": [
+							5
+						],
+						"extension": [
+							{
+								"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-patient-share",
+								"valueMoney": {
+									"value": 0,
+									"currency": "SAR"
+								}
+							},
+							{
+								"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-package",
+								"valueBoolean": false
+							},
+							{
+								"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-tax",
+								"valueMoney": {
+									"value": 150,
+									"currency": "SAR"
+								}
+							},
+							{
+								"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-patientInvoice",
+								"valueIdentifier": {
+									"system": "http://sgh.com/patientInvoice",
+									"value": "Invc-20220120/IP-1110987"
+								}
+							}
+						],
+						"careTeamSequence": [
+							1
+						],
+						"productOrService": {
+							"coding": [
+								{
+									"system": "http://nphies.sa/terminology/CodeSystem/procedures",
+									"code": "11000-00-00",
+									"display": "Electroencephalography"
+								},
+								{
+									"system": "http://sgh.sa.com//procedures",
+									"code": "335",
+									"display": "Electroencephalography"
+								}
+							]
+						},
+						"servicedDate": "2021-08-30",
+						"quantity": {
+							"value": 1
+						},
+						"unitPrice": {
+							"value": 850,
+							"currency": "SAR"
+						},
+						"net": {
+							"value": 1000,
+							"currency": "SAR"
+						}
+					}
+				],
+				"total": {
+					"value": 21000,
+					"currency": "SAR"
+				}
+			}
+		},
+		{
+			"fullUrl": "http://sgh.com.sa/Organization/b1b3432921324f97af3be9fd0b1a14ae",
+			"resource": {
+				"resourceType": "Organization",
+				"id": "b1b3432921324f97af3be9fd0b1a14ae",
+				"meta": {
+					"profile": [
+						"http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/provider-organization|1.0.0"
+					]
+				},
+				"identifier": [
+					{
+						"system": "http://nphies.sa/license/provider-license",
+						"value": "N-F-00001"
+					}
+				],
+				"active": true,
+				"type": [
+					{
+						"coding": [
+							{
+								"system": "http://nphies.sa/terminology/CodeSystem/organization-type",
+								"code": "prov"
+							}
+						]
+					}
+				],
+				"name": "Saudi General Hospital"
+			}
+		},
+		{
+			"fullUrl": "http://sgh.com.sa/Organization/bff3aa1fbd3648619ac082357bf135db",
+			"resource": {
+				"resourceType": "Organization",
+				"id": "bff3aa1fbd3648619ac082357bf135db",
+				"meta": {
+					"profile": [
+						"http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/insurer-organization|1.0.0"
+					]
+				},
+				"identifier": [
+					{
+						"system": "http://nphies.sa/license/payer-license",
+						"value": "N-I-00001"
+					}
+				],
+				"active": true,
+				"type": [
+					{
+						"coding": [
+							{
+								"system": "http://nphies.sa/terminology/CodeSystem/organization-type",
+								"code": "ins"
+							}
+						]
+					}
+				],
+				"name": "Saudi National Insurance"
+			}
+		},
+		{
+			"fullUrl": "http://sgh.com.sa/Coverage/1333",
+			"resource": {
+				"resourceType": "Coverage",
+				"id": "1333",
+				"meta": {
+					"profile": [
+						"http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/coverage|1.0.0"
+					]
+				},
+				"identifier": [
+					{
+						"system": "http://sni.com.sa/memberid",
+						"value": "0000000002"
+					}
+				],
+				"status": "active",
+				"type": {
+					"coding": [
+						{
+							"system": "http://nphies.sa/terminology/CodeSystem/coverage-type",
+							"code": "EHCPOL",
+							"display": "extended healthcare"
+						}
+					]
+				},
+				"subscriber": {
+					"reference": "http://sgh.com.sa/Patient/3662364643"
+				},
+				"beneficiary": {
+					"reference": "http://sgh.com.sa/Patient/3662364643"
+				},
+				"relationship": {
+					"coding": [
+						{
+							"system": "http://terminology.hl7.org/CodeSystem/subscriber-relationship",
+							"code": "self",
+							"display": "Self"
+						}
+					]
+				},
+				"payor": [
+					{
+						"reference": "http://sgh.com.sa/Organization/bff3aa1fbd3648619ac082357bf135db"
+					}
+				],
+				"class": [
+					{
+						"type": {
+							"coding": [
+								{
+									"system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+									"code": "group"
+								}
+							]
+						},
+						"value": "CB135",
+						"name": "Insurance Group A"
+					}
+				],
+				"network": "Golden C"
+			}
+		},
+		{
+			"fullUrl": "http://sgh.sa.com/Practitioner/7",
+			"resource": {
+				"resourceType": "Practitioner",
+				"id": "7",
+				"meta": {
+					"profile": [
+						"http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/practitioner|1.0.0"
+					]
+				},
+				"identifier": [
+					{
+						"type": {
+							"coding": [
+								{
+									"system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+									"code": "MD"
+								}
+							]
+						},
+						"system": "http://nphies.sa/license/practitioner-license",
+						"value": "N-P-00001"
+					}
+				],
+				"active": true,
+				"name": [
+					{
+						"use": "official",
+						"text": "Dr. Ameera Hassan",
+						"family": "Hassan",
+						"given": [
+							"Ameera"
+						]
+					}
+				]
+			}
+		},
+		{
+			"fullUrl": "http://sgh.com.sa/Patient/3662364643",
+			"resource": {
+				"resourceType": "Patient",
+				"id": "3662364643",
+				"meta": {
+					"profile": [
+						"http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/patient|1.0.0"
+					]
+				},
+				"identifier": [
+					{
+						"type": {
+							"coding": [
+								{
+									"system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+									"code": "PRC",
+									"display": "iqama"
+								}
+							]
+						},
+						"system": "http://nphies.sa/identifier/iqama",
+						"value": "0000000001"
+					}
+				],
+				"active": true,
+				"name": [
+					{
+						"use": "official",
+						"text": "Maria Khaled Rizwan",
+						"family": "Rizwan",
+						"given": [
+							"Maria",
+							"Khaled"
+						]
+					}
+				],
+				"telecom": [
+					{
+						"system": "phone",
+						"value": "+966512210643"
+					}
+				],
+				"gender": "female",
+				"_gender": {
+					"extension": [
+						{
+							"url": "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-ksa-administrative-gender",
+							"valueCodeableConcept": {
+								"coding": [
+									{
+										"system": "http://nphies.sa/terminology/CodeSystem/ksa-administrative-gender",
+										"code": "female",
+										"display": "Female"
+									}
+								]
+							}
+						}
+					]
+				},
+				"birthDate": "1984-12-25"
+			}
+		}
+	]
+}

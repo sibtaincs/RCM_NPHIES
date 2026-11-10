@@ -1,0 +1,164 @@
+{
+    "resourceType": "Bundle",
+    "id": "70b710a3-cb1f-43ca-9b95-5596fce5219b",
+    "meta": {
+        "profile": [
+            "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/bundle|1.0.0"
+        ]
+    },
+    "type": "message",
+    "timestamp": "2022-08-03T08:52:12.129+00:00",
+    "entry": [
+        {
+            "fullUrl": "http://pseudo-payer.com.sa/MessageHeader/b1bee555-6a43-4e26-ad3d-b39e2047f319",
+            "resource": {
+                "resourceType": "MessageHeader",
+                "id": "b1bee555-6a43-4e26-ad3d-b39e2047f319",
+                "meta": {
+                    "profile": [
+                        "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/message-header|1.0.0"
+                    ]
+                },
+                "eventCoding": {
+                    "system": "http://nphies.sa/terminology/CodeSystem/ksa-message-events",
+                    "code": "cancel-response"
+                },
+                "destination": [
+                    {
+                        "endpoint": "http://10.73.91.79/",
+                        "receiver": {
+                            "type": "Organization",
+                            "identifier": {
+                                "system": "http://nphies.sa/license/provider-license",
+                                "value": "PR-FHIR"
+                            }
+                        }
+                    }
+                ],
+                "sender": {
+                    "type": "Organization",
+                    "identifier": {
+                        "system": "http://nphies.sa/license/payer-license",
+                        "value": "INS-FHIR"
+                    }
+                },
+                "source": {
+                    "endpoint": "http://payer.com"
+                },
+                "response": {
+                    "identifier": "af4bf225-05df-4435-a6ba-73008c0d2930",
+                    "code": "ok"
+                },
+                "focus": [
+                    {
+                        "reference": "http://pseudo-payer.com.sa/Task/392930"
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://pseudo-payer.com.sa/Task/392930",
+            "resource": {
+                "resourceType": "Task",
+                "id": "392930",
+                "meta": {
+                    "profile": [
+                        "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/task|1.0.0"
+                    ]
+                },
+                "identifier": [
+                    {
+                        "system": "http://pseudo-payer.com.sa/task",
+                        "value": "resp_49243"
+                    }
+                ],
+                "status": "completed",
+                "intent": "order",
+                "priority": "routine",
+                "code": {
+                    "coding": [
+                        {
+                            "system": "http://nphies.sa/terminology/CodeSystem/task-code",
+                            "code": "cancel"
+                        }
+                    ]
+                },
+                "focus": {
+                    "type": "Claim",
+                    "identifier": {
+                        "system": "http://saudicentralpharmacy.sa.com/claim",
+                        "value": "req_00112482930"
+                    }
+                },
+                "authoredOn": "2021-12-02",
+                "lastModified": "2021-12-02",
+                "requester": {
+                    "reference": "http://saudidentalclinic.com.sa/Organization/b1b3432921324f97af3be9fd0b1a14ae"
+                },
+                "owner": {
+                    "reference": "http://saudidentalclinic.com.sa/Organization/bff3aa1fbd3648619ac082357bf135db"
+                }
+            }
+        },
+        {
+            "fullUrl": "http://saudidentalclinic.com.sa/Organization/b1b3432921324f97af3be9fd0b1a14ae",
+            "resource": {
+                "resourceType": "Organization",
+                "id": "b1b3432921324f97af3be9fd0b1a14ae",
+                "meta": {
+                    "profile": [
+                        "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/provider-organization|1.0.0"
+                    ]
+                },
+                "identifier": [
+                    {
+                        "system": "http://nphies.sa/license/provider-license",
+                        "value": "PR-FHIR"
+                    }
+                ],
+                "active": true,
+                "type": [
+                    {
+                        "coding": [
+                            {
+                                "system": "http://nphies.sa/terminology/CodeSystem/organization-type",
+                                "code": "prov"
+                            }
+                        ]
+                    }
+                ],
+                "name": "Saudi Dentist Clinic"
+            }
+        },
+        {
+            "fullUrl": "http://saudidentalclinic.com.sa/Organization/bff3aa1fbd3648619ac082357bf135db",
+            "resource": {
+                "resourceType": "Organization",
+                "id": "bff3aa1fbd3648619ac082357bf135db",
+                "meta": {
+                    "profile": [
+                        "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/insurer-organization|1.0.0"
+                    ]
+                },
+                "identifier": [
+                    {
+                        "system": "http://nphies.sa/license/payer-license",
+                        "value": "INS-FHIR"
+                    }
+                ],
+                "active": true,
+                "type": [
+                    {
+                        "coding": [
+                            {
+                                "system": "http://nphies.sa/terminology/CodeSystem/organization-type",
+                                "code": "ins"
+                            }
+                        ]
+                    }
+                ],
+                "name": "Saudi National Insurance"
+            }
+        }
+    ]
+}

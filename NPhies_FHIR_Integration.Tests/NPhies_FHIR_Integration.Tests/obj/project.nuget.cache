@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "dgSpecHash": "BTDDE3u7zW4=",
+  "success": false,
+  "projectFilePath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\sibtain.alimadad\\.nuget\\packages\\microsoft.netcore.app.ref\\9.0.16\\microsoft.netcore.app.ref.9.0.16.nupkg.sha512",
+    "C:\\Users\\sibtain.alimadad\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\9.0.16\\microsoft.windowsdesktop.app.ref.9.0.16.nupkg.sha512",
+    "C:\\Users\\sibtain.alimadad\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\9.0.16\\microsoft.aspnetcore.app.ref.9.0.16.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "Undefined",
+      "level": "Error",
+      "message": "Failed to download package 'Hl7.Fhir.R4.5.11.1' from 'https://api.nuget.org/v3-flatcontainer/hl7.fhir.r4/5.11.1/hl7.fhir.r4.5.11.1.nupkg'.\r\nResponse status code does not indicate success: 503 (Service Unavailable).",
+      "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "filePath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "targetGraphs": []
+    },
+    {
+      "code": "Undefined",
+      "level": "Error",
+      "message": "The feed 'nuget.org [https://api.nuget.org/v3/index.json]' lists package 'Hl7.Fhir.R4.5.11.1' but multiple attempts to download the nupkg have failed. The feed is either invalid or required packages were removed while the current operation was in progress. Verify the package exists on the feed and try again.",
+      "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "filePath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "targetGraphs": []
+    },
+    {
+      "code": "Undefined",
+      "level": "Error",
+      "message": "Failed to download package 'Moq.4.20.72' from 'https://www.nuget.org/api/v2/package/Moq/4.20.72'.\r\nResponse status code does not indicate success: 503 (Service Unavailable).",
+      "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "filePath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "targetGraphs": []
+    },
+    {
+      "code": "Undefined",
+      "level": "Error",
+      "message": "Failed to download package 'Moq.4.20.72' from 'https://api.nuget.org/v3-flatcontainer/moq/4.20.72/moq.4.20.72.nupkg'.\r\nResponse status code does not indicate success: 503 (Service Unavailable).",
+      "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "filePath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "targetGraphs": []
+    },
+    {
+      "code": "Undefined",
+      "level": "Error",
+      "message": "The feed 'nuget.org [https://api.nuget.org/v3/index.json]' lists package 'Moq.4.20.72' but multiple attempts to download the nupkg have failed. The feed is either invalid or required packages were removed while the current operation was in progress. Verify the package exists on the feed and try again.",
+      "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "filePath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+      "targetGraphs": []
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>nphies-fhir-integration-apiservice</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NPhies_FHIR_Integration.ServiceDefaults\NPhies_FHIR_Integration.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Domain\NPhies_FHIR_Integration.Domain.csproj" />
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Application\NPhies_FHIR_Integration.Application.csproj" />
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Infrastructure\NPhies_FHIR_Integration.Infrastructure.csproj" />
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Common\NPhies_FHIR_Integration.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>

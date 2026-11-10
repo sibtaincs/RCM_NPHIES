@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Domain\NPhies_FHIR_Integration.Domain.csproj" />
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Infrastructure\NPhies_FHIR_Integration.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="12.0.1" />
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    
+    <!-- FHIR Packages - Serialization and Support are included in R4 package for version 5.x -->
+    <PackageReference Include="Hl7.Fhir.R4" Version="5.6.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
+    
+    <!-- HTTP and Resilience Packages (Week 2 - Day 4) -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="9.0.0" />
+    <PackageReference Include="Polly.Extensions.Http" Version="3.0.0" />
+    
+    <!-- Health Checks (Week 2 - Day 4) -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="9.0.0" />
+    
+    <!-- Memory Cache for Token Caching (Week 2 - Day 4) -->
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
+    
+    <!-- Logging (Week 2 - Day 4) -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Middleware\" />
+    <Folder Include="Repositories\" />
+    <Folder Include="Services\RCM\Adapters\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Nphies\Resources\nphies-error-catalog.json" LogicalName="NPhies.ErrorCatalog.json" />
+    <EmbeddedResource Include="Nphies\Resources\nphies-fs-package.tgz" LogicalName="NPhies.IgPackage.tgz" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- Legacy test files target APIs that no longer exist; only the maintained suites are compiled. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Nphies\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Versions available from the Visual Studio offline package source (nuget.org binaries are blocked on the corporate network). -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0-preview-24080-01" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.1.1" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.1.1" />
+    <PackageReference Include="System.Reflection.Metadata" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Application\NPhies_FHIR_Integration.Application.csproj" />
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Infrastructure\NPhies_FHIR_Integration.Infrastructure.csproj" />
+    <ProjectReference Include="..\NPhies_FHIR_Integration.Domain\NPhies_FHIR_Integration.Domain.csproj" />
+    <ProjectReference Include="..\NPhies_FHIR_Integration.ApiService\NPhies_FHIR_Integration.ApiService.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\nphies-fhir-docs-main\*.json" LinkBase="DocsExamples" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

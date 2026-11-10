@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+dist/
+dist-ssr/
+
+# Local env overrides
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

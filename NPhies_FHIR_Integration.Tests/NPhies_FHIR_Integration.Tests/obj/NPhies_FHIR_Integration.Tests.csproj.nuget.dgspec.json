@@ -1,0 +1,448 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Application\\NPhies_FHIR_Integration.Application.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Application\\NPhies_FHIR_Integration.Application.csproj",
+        "projectName": "NPhies_FHIR_Integration.Application",
+        "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Application\\NPhies_FHIR_Integration.Application.csproj",
+        "packagesPath": "C:\\Users\\sibtain.alimadad\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Application\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
+          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\sibtain.alimadad\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {},
+          "https://www.nuget.org/api/v2": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "framework": "net9.0",
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj": {
+                "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj"
+              },
+              "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Infrastructure\\NPhies_FHIR_Integration.Infrastructure.csproj": {
+                "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Infrastructure\\NPhies_FHIR_Integration.Infrastructure.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "framework": "net9.0",
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "AutoMapper": {
+              "target": "Package",
+              "version": "[12.0.1, )"
+            },
+            "AutoMapper.Extensions.Microsoft.DependencyInjection": {
+              "target": "Package",
+              "version": "[12.0.1, )"
+            },
+            "Hl7.Fhir.R4": {
+              "target": "Package",
+              "version": "[5.6.0, )"
+            },
+            "Microsoft.Extensions.Caching.Memory": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Diagnostics.HealthChecks": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Http": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Http.Polly": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Polly.Extensions.Http": {
+              "target": "Package",
+              "version": "[3.0.0, )"
+            },
+            "System.IdentityModel.Tokens.Jwt": {
+              "target": "Package",
+              "version": "[7.1.2, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj",
+        "projectName": "NPhies_FHIR_Integration.Domain",
+        "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj",
+        "packagesPath": "C:\\Users\\sibtain.alimadad\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
+          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\sibtain.alimadad\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {},
+          "https://www.nuget.org/api/v2": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "framework": "net9.0",
+            "targetAlias": "net9.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "framework": "net9.0",
+          "targetAlias": "net9.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Infrastructure\\NPhies_FHIR_Integration.Infrastructure.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Infrastructure\\NPhies_FHIR_Integration.Infrastructure.csproj",
+        "projectName": "NPhies_FHIR_Integration.Infrastructure",
+        "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Infrastructure\\NPhies_FHIR_Integration.Infrastructure.csproj",
+        "packagesPath": "C:\\Users\\sibtain.alimadad\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Infrastructure\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
+          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\sibtain.alimadad\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {},
+          "https://www.nuget.org/api/v2": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "framework": "net9.0",
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj": {
+                "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "framework": "net9.0",
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "Microsoft.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.SqlServer": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.Tools": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+        "projectName": "NPhies_FHIR_Integration.Tests",
+        "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests.csproj",
+        "packagesPath": "C:\\Users\\sibtain.alimadad\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Tests\\NPhies_FHIR_Integration.Tests\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
+          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\sibtain.alimadad\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {},
+          "https://www.nuget.org/api/v2": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "framework": "net9.0",
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Application\\NPhies_FHIR_Integration.Application.csproj": {
+                "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Application\\NPhies_FHIR_Integration.Application.csproj"
+              },
+              "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj": {
+                "projectPath": "C:\\Users\\sibtain.alimadad\\source\\repos\\NPhies_FHIR_Integration\\NPhies_FHIR_Integration.Domain\\NPhies_FHIR_Integration.Domain.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "framework": "net9.0",
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "FluentAssertions": {
+              "target": "Package",
+              "version": "[7.0.0, )"
+            },
+            "Hl7.Fhir.R4": {
+              "target": "Package",
+              "version": "[5.11.1, )"
+            },
+            "Microsoft.NET.Test.Sdk": {
+              "target": "Package",
+              "version": "[17.14.1, )"
+            },
+            "Moq": {
+              "target": "Package",
+              "version": "[4.20.72, )"
+            },
+            "coverlet.collector": {
+              "target": "Package",
+              "version": "[6.0.4, )"
+            },
+            "xunit": {
+              "target": "Package",
+              "version": "[2.9.3, )"
+            },
+            "xunit.runner.visualstudio": {
+              "target": "Package",
+              "version": "[3.1.4, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.16, 9.0.16]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

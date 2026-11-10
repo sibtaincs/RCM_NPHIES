@@ -1,0 +1,177 @@
+{
+    "resourceType": "Bundle",
+    "id": "012cd045-654a-4dd6-8362-05e33f191e96",
+    "meta": {
+        "profile": [
+            "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/bundle|1.0.0"
+        ]
+    },
+    "type": "message",
+    "timestamp": "2022-02-22T07:25:46.57+00:00",
+    "entry": [
+        {
+            "fullUrl": "http://pseudo-payer.com.sa/MessageHeader/be363f07-7038-4d32-aa08-538edd76cf39",
+            "resource": {
+                "resourceType": "MessageHeader",
+                "id": "be363f07-7038-4d32-aa08-538edd76cf39",
+                "meta": {
+                    "profile": [
+                        "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/message-header|1.0.0"
+                    ]
+                },
+                "eventCoding": {
+                    "system": "http://nphies.sa/terminology/CodeSystem/ksa-message-events",
+                    "code": "status-response"
+                },
+                "destination": [
+                    {
+                        "endpoint": "http://10.73.91.79/",
+                        "receiver": {
+                            "type": "Organization",
+                            "identifier": {
+                                "system": "http://nphies.sa/license/provider-license",
+                                "value": "172612820"
+                            }
+                        }
+                    }
+                ],
+                "sender": {
+                    "type": "Organization",
+                    "identifier": {
+                        "system": "http://nphies.sa/license/payer-license",
+                        "value": "INS-FHIR"
+                    }
+                },
+                "source": {
+                    "endpoint": "http://payer.com"
+                },
+                "response": {
+                    "identifier": "3fa23591-f89b-4ad9-aa38-0cf23d808331",
+                    "code": "ok"
+                },
+                "focus": [
+                    {
+                        "reference": "http://pseudo-payer.com.sa/Task/958331"
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://pseudo-payer.com.sa/Task/958331",
+            "resource": {
+                "resourceType": "Task",
+                "id": "958331",
+                "meta": {
+                    "profile": [
+                        "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/task|1.0.0"
+                    ]
+                },
+                "identifier": [
+                    {
+                        "system": "http://pseudo-payer.com.sa/task",
+                        "value": "resp_71932"
+                    }
+                ],
+                "status": "completed",
+                "intent": "order",
+                "priority": "routine",
+                "code": {
+                    "coding": [
+                        {
+                            "system": "http://nphies.sa/terminology/CodeSystem/task-code",
+                            "code": "status"
+                        }
+                    ]
+                },
+                "focus": {
+                    "type": "Claim",
+                    "identifier": {
+                        "system": "http://saudicentralpharmacy.sa.com/claim",
+                        "value": "req_00112487303"
+                    }
+                },
+                "authoredOn": "2021-12-02",
+                "lastModified": "2021-12-02",
+                "requester": {
+                    "reference": "http://saudicentralpharmacy.sa.com/Organization/b1b3432921324f97af3be9fd0b1a34fa"
+                },
+                "owner": {
+                    "reference": "http://sni.com.sa/Organization/bff3aa1fbd3648619ac082357bf135db"
+                },
+                "output": [
+                    {
+                        "type": {
+                            "coding": [
+                                {
+                                    "system": "http://nphies.sa/terminology/CodeSystem/task-output-type",
+                                    "code": "status"
+                                }
+                            ]
+                        },
+                        "valueCode": "complete"
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://saudicentralpharmacy.sa.com/Organization/b1b3432921324f97af3be9fd0b1a34fa",
+            "resource": {
+                "resourceType": "Organization",
+                "id": "b1b3432921324f97af3be9fd0b1a34fa",
+                "meta": {
+                    "profile": [
+                        "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/provider-organization|1.0.0"
+                    ]
+                },
+                "identifier": [
+                    {
+                        "system": "http://nphies.sa/license/provider-license",
+                        "value": "172612820"
+                    }
+                ],
+                "active": true,
+                "type": [
+                    {
+                        "coding": [
+                            {
+                                "system": "http://nphies.sa/terminology/CodeSystem/organization-type",
+                                "code": "prov"
+                            }
+                        ]
+                    }
+                ],
+                "name": "Saudi Central Pharmacy"
+            }
+        },
+        {
+            "fullUrl": "http://sni.com.sa/Organization/bff3aa1fbd3648619ac082357bf135db",
+            "resource": {
+                "resourceType": "Organization",
+                "id": "bff3aa1fbd3648619ac082357bf135db",
+                "meta": {
+                    "profile": [
+                        "http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/insurer-organization|1.0.0"
+                    ]
+                },
+                "identifier": [
+                    {
+                        "system": "http://nphies.sa/license/payer-license",
+                        "value": "INS-FHIR"
+                    }
+                ],
+                "active": true,
+                "type": [
+                    {
+                        "coding": [
+                            {
+                                "system": "http://nphies.sa/terminology/CodeSystem/organization-type",
+                                "code": "ins"
+                            }
+                        ]
+                    }
+                ],
+                "name": "Saudi National Insurance"
+            }
+        }
+    ]
+}
