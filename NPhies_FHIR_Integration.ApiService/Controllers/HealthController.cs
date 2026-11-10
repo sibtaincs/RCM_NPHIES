@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.Common.Constants;
 using NPhies_FHIR_Integration.Common.Models;
@@ -12,6 +13,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers;
 public class HealthController : ControllerBase
 {
     [HttpGet]
+    [AllowAnonymous]
     public IActionResult GetHealth()
     {
         var response = ApiResponse.SuccessResponse("API is healthy and running");

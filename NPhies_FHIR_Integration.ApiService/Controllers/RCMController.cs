@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.ApiService.Controllers.Rcm;
+using NPhies_FHIR_Integration.ApiService.Security;
+using NPhies_FHIR_Integration.ApiService.Security.Authorization;
 using NPhies_FHIR_Integration.Application.Rcm;
 using NPhies_FHIR_Integration.Application.Rcm.Dtos;
 using NPhies_FHIR_Integration.Application.Rcm.Services;
@@ -18,7 +20,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-[Authorize(Policy = "RCMViewer")]
+[Authorize]
 [RcmExceptionFilter]
 public class RCMController : BaseController
 {
@@ -38,7 +40,7 @@ public class RCMController : BaseController
 
     /// <summary>Ingests an NPHIES response message bundle (claim-response, payment-reconciliation, ...).</summary>
     [HttpPost("process-response")]
-    [Authorize(Policy = "RCMProcessor")]
+    [HasPermission(Permissions.ClaimsUpdate)]
     [Consumes("application/json", "application/fhir+json", "text/plain")]
     public async Task<IActionResult> ProcessClaimResponse(CancellationToken ct)
     {
@@ -51,6 +53,7 @@ public class RCMController : BaseController
     // routes (api/rcm/denials, api/rcm/appeals); duplicates here made routing ambiguous.
 
     [HttpGet("reconciliation")]
+    [HasPermission(Permissions.PaymentsRead)]
     public async Task<IActionResult> GetReconciliation(
         [FromQuery] string? providerId = null,
         [FromQuery] DateTime? fromDate = null,
@@ -64,6 +67,7 @@ public class RCMController : BaseController
     }
 
     [HttpGet("summary/{claimId}")]
+    [HasPermission(Permissions.ClaimsRead)]
     public async Task<IActionResult> GetClaimSummary([FromRoute] string claimId, CancellationToken ct)
     {
         var timeline = await _claims.GetTimelineAsync(claimId, ct);

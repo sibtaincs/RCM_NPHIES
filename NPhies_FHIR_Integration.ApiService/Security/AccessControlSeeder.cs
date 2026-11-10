@@ -103,6 +103,10 @@ public static class AccessControlSeeder
         [SecurityConstants.USER_ROLE] = [Permissions.MasterDataRead]
     };
 
+    /// <summary>Default permissions seeded for a role (empty for Admin, which receives everything).</summary>
+    public static IReadOnlyCollection<string> GetDefaultGrants(string roleName) =>
+        DefaultGrants.TryGetValue(roleName, out var grants) ? grants : [];
+
     public static async Task SeedAsync(ApplicationDbContext db, ILogger logger)
     {
         try
@@ -191,6 +195,7 @@ Category = category,
       if (await db.AppRolePermissions.AnyAsync())
    {
    logger.LogInformation("??  Role permissions already configured. Skipping grant seed.");
+        await BackfillAdminGrantsAsync(db, roles, permissions, logger);
         return;
       }
 
@@ -227,5 +232,34 @@ Category = category,
    db.AppRolePermissions.AddRange(grants);
  await db.SaveChangesAsync();
         logger.LogInformation("? Seeded {Count} role-permission grant(s).", grants.Count);
+    }
+
+    /// <summary>
+    /// Keeps the Admin role's explicit grants complete when new permissions are added to the catalogue
+    /// (Admin already passes every check implicitly; this keeps the Effective Access view accurate).
+    /// </summary>
+    private static async Task BackfillAdminGrantsAsync(
+        ApplicationDbContext db,
+        Dictionary<string, AppRole> roles,
+        Dictionary<string, AppPermission> permissions,
+        ILogger logger)
+    {
+        if (!roles.TryGetValue(SecurityConstants.ADMIN_ROLE, out var admin)) return;
+
+        var granted = await db.AppRolePermissions
+            .Where(rp => rp.RoleId == admin.Id)
+            .Select(rp => rp.PermissionId)
+            .ToListAsync();
+
+        var missing = permissions.Values
+            .Where(p => !granted.Contains(p.Id))
+            .Select(p => new AppRolePermission { RoleId = admin.Id, PermissionId = p.Id, GrantedBy = "seeder" })
+            .ToList();
+
+        if (missing.Count == 0) return;
+
+        db.AppRolePermissions.AddRange(missing);
+        await db.SaveChangesAsync();
+        logger.LogInformation("? Granted {Count} new permission(s) to the Admin role.", missing.Count);
     }
 }

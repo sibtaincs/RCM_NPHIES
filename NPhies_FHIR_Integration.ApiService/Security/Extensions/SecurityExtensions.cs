@@ -94,6 +94,12 @@ public static class SecurityExtensions
     {
         services.AddAuthorization(options =>
              {
+                 // Secure by default: every endpoint requires an authenticated user unless it is
+                 // explicitly marked [AllowAnonymous] (login, refresh, health checks, dev OpenAPI).
+                 options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+                     .RequireAuthenticatedUser()
+                     .Build();
+
                  // Role-based policies
                  options.AddPolicy("AdminOnly", policy =>
              policy.RequireRole(SecurityConstants.ADMIN_ROLE));
@@ -168,13 +174,14 @@ public static class SecurityExtensions
         if (!configuration.GetValue<bool>("App:IsDevelopment"))
             app.UseHttpsRedirection();
 
+        // CORS must run before authentication/authorization so preflight (OPTIONS) requests are answered
+        // instead of being rejected by the fallback "authenticated user" policy.
+        var corsPolicyName = configuration.GetValue<bool>("App:IsDevelopment") ? "AllowDevelopment" : "AllowSpecified";
+        app.UseCors(corsPolicyName);
+
         // Use authentication and authorization
         app.UseAuthentication();
         app.UseAuthorization();
-
-        // Use CORS
-        var corsPolicyName = configuration.GetValue<bool>("App:IsDevelopment") ? "AllowDevelopment" : "AllowSpecified";
-        app.UseCors(corsPolicyName);
 
         return app;
     }

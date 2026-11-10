@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.ApiService.Security.Models;
 using NPhies_FHIR_Integration.ApiService.Security.Services;
@@ -28,6 +29,7 @@ public class AuthController : ControllerBase
     /// <param name="request">Login request with username and password</param>
     /// <returns>JWT token and user information</returns>
     [HttpPost("login")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status401Unauthorized)]
    public async Task<IActionResult> Login([FromBody] LoginRequest request)
@@ -58,6 +60,7 @@ Message = "Invalid request",
     /// <param name="request">Refresh token request</param>
     /// <returns>New JWT token</returns>
     [HttpPost("refresh")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<JwtTokenModel>), StatusCodes.Status200OK)]
   [ProducesResponseType(typeof(ApiResponse<JwtTokenModel>), StatusCodes.Status401Unauthorized)]
   public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
@@ -145,6 +148,7 @@ Message = "Invalid request",
   /// </summary>
     /// <returns>Health status</returns>
     [HttpGet("health")]
+    [AllowAnonymous]
    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public IActionResult Health()
   {

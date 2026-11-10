@@ -124,9 +124,9 @@ tri-state “select all” checkbox and an `n/total` badge — so granting an entire a
 
 ## 5. ?? Seeded Defaults
 
-**13 roles** (mirroring `SecurityConstants`) and **28 permissions** across 9 categories:
+**13 roles** (mirroring `SecurityConstants`) and **30 permissions** across 10 categories:
 `Claims`, `PreAuthorization`, `Eligibility`, `Patients`, `MasterData`, `Payments`, `Reports`,
-`AccessControl`, `Audit`.
+`AccessControl`, `Reviews`, `Audit`.
 
 Default grants follow least-privilege, e.g.:
 
@@ -137,6 +137,7 @@ Default grants follow least-privilege, e.g.:
 | `TechnicalReviewer` | `claims:technical-review` |
 | `MedicalReviewer` | `claims:medical-review` |
 | `Auditor` | `audit:read` (read-only) |
+| `ComplianceOfficer` | `audit:read` |
 
 ---
 
@@ -151,7 +152,7 @@ cd frontend && npm run dev
 ```
 
 1. Sign in as **`admin`** ? **User Management**.
-2. **Permissions** tab ? 28 seeded permissions (system ones show a ??).
+2. **Permissions** tab ? 30 seeded permissions (system ones show a ??).
 3. **Roles** tab ? 13 roles with permission counts.
 4. Click **New role** ? e.g. `BillingSpecialist`, tick the *Payments* category ? Create.
 5. **Users** tab ? edit a user ? the new role appears in the dropdown ?
@@ -208,6 +209,35 @@ create/update/delete. This matches the Role?Feature matrix — `RCMViewer`,
 
 - `authStore.can()` mirrors the backend handler — **Admin implicitly passes everything**.
 
+### 7.5 Legacy role strings migrated to `[HasPermission]` (roadmap 1.2)
+
+The guards on these controllers named roles that never existed (`TECHNICAL_REVIEW_MANAGER`,
+`MEDICAL_REVIEW_MANAGER`, `*_SUPERVISOR`), so **nobody but Admin** could call them. The audit API
+in particular was unreachable for the `Auditor` role.
+
+| Controller / endpoints | Old guard | New permission |
+|---|---|---|
+| `AuditController` (all 7 `GET /api/audit/*`) | `TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER` | `audit:read` |
+| `RolesController` create / update / delete / grant / revoke | `TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER` | `roles:manage` |
+| `UserRolesController` assign / remove / change-primary | `TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER` | `users:manage` |
+| `ClaimRoutingController` assign / pending / qa-queue / submit-qa-review | `*_SUPERVISOR,*_MANAGER` | `reviews:supervise` (new) |
+| `SupervisorsController` metrics / performance | `*_SUPERVISOR,*_MANAGER` | `reviews:supervise` (new) |
+| `SupervisorsController` assign / remove / department-metrics | `TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER` | `reviews:manage` (new) |
+| `UsersController` reads / writes | `Admin` | `users:read` / `users:manage` |
+| `POST /api/rcm/documents/migrate-inline` | `Admin` | `claims:update` + `masterdata:manage` |
+| `RCMController` (legacy `api/RCM/*`) | policies `RCMViewer` / `RCMProcessor` | `claims:read`, `payments:read`, `claims:update` |
+
+Notes:
+- `audit:read` is granted by default to **`Auditor`** and **`ComplianceOfficer`** (Admin passes implicitly).
+- `reviews:supervise` / `reviews:manage` are new and granted only to Admin by default; grant them to a
+  supervisor/manager role from the Roles tab.
+- On existing databases the seeder inserts new catalogue permissions **and** grants them to the
+  Admin role, so Effective Access stays accurate. Other roles' grants are never re-seeded.
+- `users:manage` cannot escalate: only an Admin may create, modify, delete or reset an Admin account,
+  or assign the Admin role.
+- `GET /api/audit/action/{action}` always returned 404 (`{action}` is a reserved MVC route token);
+  it is now `GET /api/audit/action/{actionName}`.
+
 ---
 
 ## 8. ?? Re-login & Test Plan
@@ -222,7 +252,7 @@ cd frontend && npm run dev
 
 **On startup, look for these log lines:**
 ```
-? Seeded 28 permission(s).
+? Seeded 30 permission(s).
 ? Seeded 13 role(s).
 ? Seeded N role-permission grant(s).
 ```
@@ -230,7 +260,7 @@ cd frontend && npm run dev
 | # | Test | Expected |
 |---|---|---|
 | 1 | Log out, log in as `admin` | Succeeds (token now carries permissions) |
-| 2 | User Management ? **Permissions** | 28 permissions, system ones show ?? |
+| 2 | User Management ? **Permissions** | 30 permissions, system ones show ?? |
 | 3 | User Management ? **Roles** | 13 roles with permission counts |
 | 4 | Create role `BillingSpecialist`, tick **Payments** + **MasterData** | Created |
 | 5 | Create user `billing1` with that role | Created |
@@ -247,8 +277,8 @@ Step 9 is the key proof: **access changed with no redeploy.**
 
 1. **Legacy RBAC tables** (`Roles`, `Permissions`, `UserRoles`, `RolePermissions`) remain but are
    unused — safe to drop in a later migration.
-2. **Other controllers** still use `[Authorize(Roles = "...")]`. They keep working; migrate
-   opportunistically as you touch them.
+2. **No controller authorizes by role string any more** (roadmap 1.2, see 7.5).
+   `PermissionAuthorizationTests.NoEndpoint_UsesRoleStringAuthorization` fails if one is added.
 3. **VS TypeScript warnings** about `@/…` imports are a Visual Studio quirk. `npx tsc --noEmit`
    in `/frontend` is authoritative and **passes clean**.
 

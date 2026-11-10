@@ -1,3 +1,5 @@
+using NPhies_FHIR_Integration.ApiService.Security;
+using NPhies_FHIR_Integration.ApiService.Security.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -31,7 +33,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
         /// Assign claim for review
         /// </summary>
         [HttpPost("assign")]
-        [Authorize(Roles = "TECHNICAL_REVIEW_SUPERVISOR,TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_SUPERVISOR,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.ReviewsSupervise)]
         [ProducesResponseType(typeof(ClaimAssignmentDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<ActionResult<ClaimAssignmentDto>> AssignClaim([FromBody] AssignClaimDto dto)
@@ -110,7 +112,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
         /// </summary>
         [HttpGet("pending")]
         [ProducesResponseType(typeof(List<ClaimAssignmentDto>), StatusCodes.Status200OK)]
-        [Authorize(Roles = "TECHNICAL_REVIEW_SUPERVISOR,TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_SUPERVISOR,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.ReviewsSupervise)]
         public async Task<ActionResult<List<ClaimAssignmentDto>>> GetPendingClaims([FromQuery] string reviewType = null)
         {
             try
@@ -190,7 +192,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
         /// </summary>
         [HttpGet("qa-queue/{supervisorId}")]
         [ProducesResponseType(typeof(List<ClaimAssignmentDto>), StatusCodes.Status200OK)]
-        [Authorize(Roles = "TECHNICAL_REVIEW_SUPERVISOR,TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_SUPERVISOR,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.ReviewsSupervise)]
         public async Task<ActionResult<List<ClaimAssignmentDto>>> GetQAQueue(int supervisorId)
         {
             try
@@ -211,7 +213,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
         /// Submit QA review
         /// </summary>
         [HttpPost("submit-qa-review")]
-        [Authorize(Roles = "TECHNICAL_REVIEW_SUPERVISOR,TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_SUPERVISOR,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.ReviewsSupervise)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> SubmitQAReview([FromBody] SubmitQAReviewDto dto, [FromHeader(Name = "X-User-Id")] int reviewerId)

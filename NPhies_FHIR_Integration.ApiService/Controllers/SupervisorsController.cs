@@ -1,3 +1,5 @@
+using NPhies_FHIR_Integration.ApiService.Security;
+using NPhies_FHIR_Integration.ApiService.Security.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -31,7 +33,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
      /// Create supervisor assignment
         /// </summary>
      [HttpPost("assign")]
-      [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+      [HasPermission(Permissions.ReviewsManage)]
         [ProducesResponseType(typeof(SupervisorAssignmentDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<ActionResult<SupervisorAssignmentDto>> CreateSupervisorAssignment([FromBody] CreateSupervisorAssignmentDto dto)
@@ -110,7 +112,7 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers
  /// Remove supervisor assignment
     /// </summary>
      [HttpDelete("assignment/{supervisorId}/{subordinateId}")]
-     [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+     [HasPermission(Permissions.ReviewsManage)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
    public async Task<IActionResult> RemoveSupervisorAssignment(int supervisorId, int subordinateId)
@@ -200,7 +202,7 @@ _logger.LogError(ex, "Error getting subordinates");
       /// </summary>
    [HttpGet("metrics/{supervisorId}")]
       [ProducesResponseType(typeof(TeamMetricsDto), StatusCodes.Status200OK)]
-    [Authorize(Roles = "TECHNICAL_REVIEW_SUPERVISOR,TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_SUPERVISOR,MEDICAL_REVIEW_MANAGER")]
+    [HasPermission(Permissions.ReviewsSupervise)]
     public async Task<ActionResult<TeamMetricsDto>> GetTeamMetrics(int supervisorId)
         {
    try
@@ -222,7 +224,7 @@ var metrics = await _supervisorService.GetTeamMetricsAsync(supervisorId);
         /// </summary>
       [HttpGet("performance/{supervisorId}")]
  [ProducesResponseType(typeof(List<ReviewerPerformanceDto>), StatusCodes.Status200OK)]
-  [Authorize(Roles = "TECHNICAL_REVIEW_SUPERVISOR,TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_SUPERVISOR,MEDICAL_REVIEW_MANAGER")]
+  [HasPermission(Permissions.ReviewsSupervise)]
        public async Task<ActionResult<List<ReviewerPerformanceDto>>> GetTeamPerformance(int supervisorId)
         {
     try
@@ -244,7 +246,7 @@ _logger.LogError(ex, "Error getting team performance");
      /// </summary>
         [HttpGet("department-metrics/{managerId}")]
      [ProducesResponseType(typeof(DepartmentMetricsDto), StatusCodes.Status200OK)]
-        [Authorize(Roles = "TECHNICAL_REVIEW_MANAGER,MEDICAL_REVIEW_MANAGER")]
+        [HasPermission(Permissions.ReviewsManage)]
        public async Task<ActionResult<DepartmentMetricsDto>> GetDepartmentMetrics(int managerId)
       {
        try

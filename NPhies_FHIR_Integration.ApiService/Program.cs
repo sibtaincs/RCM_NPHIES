@@ -183,15 +183,15 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
 
+// 🌐 ENABLE CORS for the React dev client (must precede authentication/authorization so preflights aren't rejected)
+app.UseCors(ReactDevCors);
+
 // 🔒 USE COMPREHENSIVE SECURITY SYSTEM
 app.UseComprehensiveSecurity(builder.Configuration);
 
-// 🌐 ENABLE CORS for the React dev client (must precede endpoint mapping)
-app.UseCors(ReactDevCors);
-
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 
     // Apply migrations and seed database in development
     using (var scope = app.Services.CreateScope())
@@ -280,3 +280,6 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 
 app.Run();
+
+/// <summary>Exposed so integration tests can host the API with WebApplicationFactory.</summary>
+public partial class Program { }
