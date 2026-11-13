@@ -1,23 +1,26 @@
-.vs/
-NPhies_FHIR_Integration.ApiService/bin/
-NPhies_FHIR_Integration.ApiService/obj/
-NPhies_FHIR_Integration.AppHost/bin/
-NPhies_FHIR_Integration.Application/bin/
-NPhies_FHIR_Integration.Application/obj/Debug/
-NPhies_FHIR_Integration.Application/obj/
-NPhies_FHIR_Integration.Common/bin/
-NPhies_FHIR_Integration.Common/obj/
-NPhies_FHIR_Integration.Domain/bin/
-NPhies_FHIR_Integration.Domain/obj/
-NPhies_FHIR_Integration.Infrastructure/bin/
-NPhies_FHIR_Integration.Infrastructure/obj/
-NPhies_FHIR_Integration.ServiceDefaults/bin/
-NPhies_FHIR_Integration.ServiceDefaults/obj/
-NPhies_FHIR_Integration.Web/bin/
-NPhies_FHIR_Integration.Web/obj/
-NPhies_FHIR_Integration.Tests/obj/
-NPhies_FHIR_Integration.Tests/bin/
+# .NET build output (every project)
+[Bb]in/
+[Oo]bj/
 TestResults/
-NPhies_FHIR_Integration.AppHost/obj/
+*.trx
+coverage/
 
+# IDE / per-user files
+.vs/
+.idea/
+*.user
+*.suo
+*.rsuser
+
+# Secrets and local configuration: never commit these
+appsettings.*.local.json
+*.pfx
+*.p12
+*.pem
+*.key
+credentials.json
+frontend/.env
+
+# Tooling
 *.tsbuildinfo
+logs/
