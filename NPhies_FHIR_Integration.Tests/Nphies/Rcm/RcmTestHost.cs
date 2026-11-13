@@ -86,8 +86,21 @@ public static class RcmFixtures
 public sealed class RcmTestHost : IAsyncDisposable
 {
     private static readonly string DatabaseName = $"NPhiesRcmTests_{Guid.NewGuid():N}";
-    private static readonly string ConnectionString =
-        $"Server=localhost;Integrated Security=true;TrustServerCertificate=true;Database={DatabaseName}";
+
+    /// <summary>
+    /// SQL Server used by the integration tests, without a database name. Override with the
+    /// <c>NPHIES_TEST_SQLSERVER</c> environment variable (CI and Docker use SQL authentication), e.g.
+    /// <c>Server=localhost,1433;User Id=sa;Password=...;TrustServerCertificate=true</c>.
+    /// </summary>
+    private static readonly string ServerConnectionString =
+        Environment.GetEnvironmentVariable("NPHIES_TEST_SQLSERVER") is { Length: > 0 } configured
+            ? configured
+            : "Server=localhost;Integrated Security=true;TrustServerCertificate=true";
+
+    private static readonly string ConnectionString = WithDatabase(DatabaseName);
+
+    private static string WithDatabase(string database) =>
+        new SqlConnectionStringBuilder(ServerConnectionString) { InitialCatalog = database }.ConnectionString;
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static bool _created;
     private static string? _unavailable;
@@ -133,7 +146,12 @@ public sealed class RcmTestHost : IAsyncDisposable
         await Gate.WaitAsync();
         try
         {
-            if (_unavailable != null) Assert.Inconclusive(_unavailable);
+            if (_unavailable != null)
+            {
+                if (string.Equals(Environment.GetEnvironmentVariable("NPHIES_TEST_REQUIRE_SQLSERVER"), "true", StringComparison.OrdinalIgnoreCase))
+                    Assert.Fail(_unavailable);
+                Assert.Inconclusive(_unavailable);
+            }
             await using var scope = host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             if (!_created)
@@ -146,6 +164,9 @@ public sealed class RcmTestHost : IAsyncDisposable
                 catch (SqlException ex)
                 {
                     _unavailable = $"Local SQL Server is not available for RCM integration tests: {ex.Message}";
+                    // CI sets NPHIES_TEST_REQUIRE_SQLSERVER so a broken database fails the build instead of skipping silently.
+                    if (string.Equals(Environment.GetEnvironmentVariable("NPHIES_TEST_REQUIRE_SQLSERVER"), "true", StringComparison.OrdinalIgnoreCase))
+                        Assert.Fail(_unavailable);
                     Assert.Inconclusive(_unavailable);
                 }
             }
@@ -171,7 +192,7 @@ EXEC sp_MSforeachtable 'IF OBJECT_NAME(OBJECT_ID(''?'')) <> ''__EFMigrationsHist
     {
         if (!_created) return;
         SqlConnection.ClearAllPools();
-        await using var connection = new SqlConnection("Server=localhost;Integrated Security=true;TrustServerCertificate=true;Database=master");
+        await using var connection = new SqlConnection(WithDatabase("master"));
         await connection.OpenAsync();
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = $"IF DB_ID('{DatabaseName}') IS NOT NULL BEGIN ALTER DATABASE [{DatabaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{DatabaseName}]; END";

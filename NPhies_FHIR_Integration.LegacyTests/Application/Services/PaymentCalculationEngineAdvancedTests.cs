@@ -163,8 +163,9 @@ Assert.False(result.IsSubjectToCoinsurance);
    // Assert
         Assert.True(result.IsSubjectToCoinsurance);
         Assert.Equal(80m, result.CoinsurancePercentage);
-        Assert.Equal(400m, result.InsuranceResponsibility);
-        Assert.Equal(100m, result.PatientResponsibility);
+        // Percentage is the patient share (see CalculateCoinsurance_StandardScenario): 80% of 500 = 400 to the patient.
+        Assert.Equal(100m, result.InsuranceResponsibility);
+        Assert.Equal(400m, result.PatientResponsibility);
     }
 
     #endregion

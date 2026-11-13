@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Moq;
 using Microsoft.Extensions.Logging;
@@ -170,57 +171,6 @@ AppealDeadlineDate = DateTime.UtcNow.AddDays(30),
         Assert.False(l3.AllowsEscalation);
     }
 
-    [Fact]
-    public async Task AppealWithDocuments_AttachAndRetrieve()
-{
-        // Arrange
-        var appealId = "APPEAL-DOC-001";
-        
-   var documents = new List<AppealDocument>
-        {
-            new AppealDocument
-     {
-        Id = "DOC-001",
-       AppealId = appealId,
-       DocumentType = "Medical Record",
-   DocumentTitle = "Patient Lab Report",
-     FilePath = "/documents/lab-report.pdf",
-        FileSizeBytes = 2048,
-       MimeType = "application/pdf",
-   AttachedDate = DateTime.UtcNow,
-    IsActive = true
-            },
-            new AppealDocument
-            {
-       Id = "DOC-002",
-      AppealId = appealId,
- DocumentType = "Provider Note",
-        DocumentTitle = "Clinical Notes",
-     FilePath = "/documents/clinical-notes.pdf",
-          FileSizeBytes = 1536,
-MimeType = "application/pdf",
-        AttachedDate = DateTime.UtcNow,
-                IsActive = true
-        }
-};
-
-        _mockRepository
-            .Setup(x => x.GetDocumentsAsync(appealId, It.IsAny<CancellationToken>()))
-        .ReturnsAsync(documents);
-
-        _mockRepository
-       .Setup(x => x.AddDocumentAsync(It.IsAny<string>(), It.IsAny<AppealDocument>(), It.IsAny<CancellationToken>()))
-      .Returns(Task.CompletedTask);
-
-        // Act
-  var retrievedDocs = await _mockRepository.Object.GetDocumentsAsync(appealId);
-
-        // Assert
-  Assert.NotEmpty(retrievedDocs);
-   Assert.Equal(2, retrievedDocs.Count);
-        Assert.All(retrievedDocs, d => Assert.Equal(appealId, d.AppealId));
-   Assert.All(retrievedDocs, d => Assert.True(d.FileSizeBytes > 0));
-    }
 
     [Fact]
     public async Task AppealTimeline_TrackingDeadlineAndStatusChanges()

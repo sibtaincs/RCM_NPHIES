@@ -208,7 +208,7 @@ var result = await _appealService.CreateAppealAsync(request);
 
 // Assert
       Assert.False(result.IsSuccess);
-      Assert.Contains("deadline has passed", result.ErrorMessage);
+      Assert.Contains("deadline has passed", result.Message);
     }
 
     [Fact]
@@ -224,7 +224,7 @@ var result = await _appealService.CreateAppealAsync(request);
 
         // Assert
         Assert.False(result.IsSuccess);
-        Assert.Contains("not found", result.ErrorMessage);
+        Assert.Contains("not found", result.Message);
     }
 
     #endregion
@@ -328,7 +328,7 @@ var result = await _appealService.EscalateAppealAsync("APPEAL-001", "Provider re
 
         // Assert
         Assert.False(result.IsSuccess);
-        Assert.Contains("maximum level", result.ErrorMessage);
+        Assert.Contains("maximum level", result.Message);
     }
 
     #endregion
@@ -431,6 +431,8 @@ AppealId = "APPEAL-001",
         Assert.NotNull(result.DocumentId);
     }
 
+    private static readonly Guid DocumentId = Guid.Parse("0f8b7c1e-0000-4000-8000-000000000001");
+
     [Fact]
     public async Task GetAppealDocumentsAsync_WithValidAppealId_ReturnsDocuments()
     {
@@ -439,7 +441,7 @@ AppealId = "APPEAL-001",
 {
    new AppealDocument
    {
-   Id = "DOC-001",
+   Id = DocumentId,
           DocumentType = "Medical Record",
       DocumentTitle = "Test",
      MimeType = "application/pdf",
@@ -456,7 +458,7 @@ AppealId = "APPEAL-001",
 
     // Assert
         Assert.Single(result);
-        Assert.Equal("DOC-001", result[0].DocumentId);
+        Assert.Equal(DocumentId.ToString(), result[0].DocumentId);
     }
 
     #endregion

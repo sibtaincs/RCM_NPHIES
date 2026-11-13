@@ -5,6 +5,11 @@ using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Domain.Entities;
 using Hl7.Fhir.Model;
 using System;
+using Organization = NPhies_FHIR_Integration.Domain.Entities.Organization;
+using Patient = NPhies_FHIR_Integration.Domain.Entities.Patient;
+using Coverage = NPhies_FHIR_Integration.Domain.Entities.Coverage;
+using Claim = NPhies_FHIR_Integration.Domain.Entities.Claim;
+using CoverageEligibilityRequest = NPhies_FHIR_Integration.Domain.Entities.CoverageEligibilityRequest;
 
 namespace NPhies_FHIR_Integration.Tests.Mapping;
 
@@ -221,8 +226,8 @@ public class EntityToFhirMapperTests
         // Assert
         Assert.NotNull(messageHeader);
         Assert.NotNull(messageHeader.Id);
-        Assert.Equal("eligibility-request", messageHeader.Event.Code);
-        Assert.Equal("http://nphies.sa/terminology/CodeSystem/ksa-message-events", messageHeader.Event.System);
+        Assert.Equal("eligibility-request", ((Coding)messageHeader.Event).Code);
+        Assert.Equal("http://nphies.sa/terminology/CodeSystem/ksa-message-events", ((Coding)messageHeader.Event).System);
         Assert.Equal("ABC Hospital", messageHeader.Source.Name);
         Assert.Equal("PR-123456", messageHeader.Source.Endpoint);
         Assert.Equal("NPHIES", messageHeader.Destination[0].Name);
@@ -261,8 +266,8 @@ public class EntityToFhirMapperTests
         Assert.Equal("Coverage/cov-123", fhirRequest.Insurance[0].Coverage.Reference);
         Assert.Equal("Organization/org-prov", fhirRequest.Provider.Reference);
         Assert.Equal("Organization/org-payer", fhirRequest.Insurer.Reference);
-        Assert.Contains(fhirRequest.Purpose, p => p == CoverageEligibilityRequest.EligibilityRequestPurpose.Discovery);
-        Assert.Contains(fhirRequest.Purpose, p => p == CoverageEligibilityRequest.EligibilityRequestPurpose.Benefits);
+        Assert.Contains(fhirRequest.Purpose, p => p == Hl7.Fhir.Model.CoverageEligibilityRequest.EligibilityRequestPurpose.Discovery);
+        Assert.Contains(fhirRequest.Purpose, p => p == Hl7.Fhir.Model.CoverageEligibilityRequest.EligibilityRequestPurpose.Benefits);
     }
 
     #endregion
