@@ -107,6 +107,7 @@ Each test database is created with a unique name and dropped at the end of the r
 | Document | Topic |
 |---|---|
 | [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | Current status, known defects, roadmap |
+| [docs/NPHIES_GAP_ANALYSIS.md](docs/NPHIES_GAP_ANALYSIS.md) | NPHIES requirements and certification test cases compared with the code |
 | [docs/nphies-messaging-core.md](docs/nphies-messaging-core.md) | Building, validating, sending and parsing NPHIES messages; configuration |
 | [docs/rcm-workflows.md](docs/rcm-workflows.md) | RCM workflows, claim statuses, payments, denials, routes |
 | [docs/RCM_SYSTEM_OVERVIEW.md](docs/RCM_SYSTEM_OVERVIEW.md) | System overview |
