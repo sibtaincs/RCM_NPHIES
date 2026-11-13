@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (.NET build and tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      # Throw-away SQL Server for the RCM workflow integration tests (NPhies_FHIR_Integration.Tests/Nphies/Rcm).
+      # The password only protects this ephemeral CI container.
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Ci_Test_Passw0rd!"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Ci_Test_Passw0rd!' -Q 'SELECT 1' -b"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      NPHIES_TEST_SQLSERVER: "Server=localhost,1433;User Id=sa;Password=Ci_Test_Passw0rd!;TrustServerCertificate=true"
+      NPHIES_TEST_REQUIRE_SQLSERVER: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore NPhies_FHIR_Integration.sln
+
+      - name: Build
+        run: dotnet build NPhies_FHIR_Integration.sln --configuration Release --no-restore
+
+      - name: Test (NPHIES messaging core and RCM workflows)
+        run: >
+          dotnet test NPhies_FHIR_Integration.Tests --configuration Release --no-build
+          --logger "trx;LogFileName=nphies.trx" --results-directory TestResults
+
+      - name: Test (legacy services)
+        run: >
+          dotnet test NPhies_FHIR_Integration.LegacyTests --configuration Release --no-build
+          --logger "trx;LogFileName=legacy.trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/*.trx
+          if-no-files-found: warn
+
+  frontend:
+    name: Frontend (lint and build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
