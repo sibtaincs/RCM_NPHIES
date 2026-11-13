@@ -1,491 +1,116 @@
-# ?? NPHIES FHIR Integration - Documentation Index
+# NPHIES RCM
 
-Welcome to the complete documentation for your NPHIES FHIR integration system!
+Revenue cycle management for healthcare providers in Saudi Arabia, integrated with **NPHIES** (the national health insurance exchange) using FHIR R4 messaging over mutual TLS.
 
----
+- **Backend:** ASP.NET Core 9, EF Core (SQL Server), Firely FHIR SDK
+- **Frontend:** React 18 + TypeScript, Vite, Ant Design
 
-## ?? Documentation Structure
+> **Status:** not production ready. See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for what works, the known defects and the roadmap.
 
-```
-?? Documentation
-?
-??? ?? README.md (This file)             # Start here!
-?   ??? Overview and navigation guide
-?
-??? ?? EXECUTIVE_SUMMARY.md          # Executive overview
-?   ??? ? What has been implemented
-?   ??? ??? Architecture overview
-?   ??? ?? Current status
-?   ??? ?? Next steps
-?
-??? ?? NPHIES_INTEGRATION_COMPLETE_GUIDE.md    # Technical deep-dive
-?   ??? ?? Authentication & Authorization (OAuth2)
-?   ??? ?? Transport Security (TLS/HTTPS)
-?   ??? ?? Eligibility Check Workflow (Step-by-step)
-?   ??? ?? Pre-Authorization Workflow
-?   ??? ?? Claim Submission Workflow
-?   ??? ?? Polling Mechanism (Async responses)
-?   ??? ? Error Handling
-?   ??? ?? Complete Code Examples
-?
-??? ?? NPHIES_QUICK_REFERENCE.md         # Quick reference
-    ??? ?? Flow diagrams
-    ??? ?? API endpoints
-    ??? ?? FHIR bundle examples
-    ??? ?? Polling strategy
-    ??? ?? Quick start commands
-```
+## Repository layout
 
----
+| Path | Contents |
+|---|---|
+| `NPhies_FHIR_Integration.ApiService` | REST API host: controllers, JWT security, background poll worker |
+| `NPhies_FHIR_Integration.Application` | `Nphies/`: messaging core (builder, validator, parser, client). `Rcm/`: RCM workflows. `Services/`: older services being consolidated |
+| `NPhies_FHIR_Integration.Infrastructure` | EF Core `ApplicationDbContext`, migrations, seeders, mTLS transport, certificate provider |
+| `NPhies_FHIR_Integration.Domain` | Entities |
+| `NPhies_FHIR_Integration.Common` | Shared constants and models |
+| `NPhies_FHIR_Integration.AppHost`, `.ServiceDefaults` | .NET Aspire host and defaults (OpenTelemetry, health checks) |
+| `NPhies_FHIR_Integration.Tests` | MSTest: messaging core, RCM workflows (needs SQL Server), security |
+| `NPhies_FHIR_Integration.LegacyTests` | xUnit tests for the older `Services/` code |
+| `frontend` | React RCM console |
+| `nphies-fhir-docs-main` | NPHIES reference material: IG, code systems, validation codes, test cases, example messages |
+| `docs` | Design documentation |
 
-## ?? Quick Navigation
+## Prerequisites
 
-### For **Executives & Project Managers**
-?? Start with: **`EXECUTIVE_SUMMARY.md`**
-- High-level overview
-- Project status
-- What's been delivered
-- Next steps
+- .NET 9 SDK
+- Node.js 22
+- SQL Server 2019 or later. On Windows, LocalDB is used automatically in Development; elsewhere, use Docker as shown below.
 
-### For **Developers (New to the project)**
-?? Start with: **`NPHIES_INTEGRATION_COMPLETE_GUIDE.md`**
-- Complete technical documentation
-- Architecture explanation
-- Code walkthroughs
-- Implementation details
+## Running locally
 
-### For **Developers (Need quick answers)**
-?? Start with: **`NPHIES_QUICK_REFERENCE.md`**
-- API endpoint reference
-- FHIR bundle examples
-- Configuration checklist
-- Common commands
+### 1. Configure secrets
 
-### For **DevOps & System Administrators**
-?? Review:
-1. **`EXECUTIVE_SUMMARY.md`** - Architecture section
-2. **`NPHIES_QUICK_REFERENCE.md`** - Configuration checklist
-3. **Application logs** - in `logs/` directory
-
----
-
-## ?? Getting Started (5-Minute Guide)
-
-### 1. **Understand the System** (2 minutes)
-
-Your system integrates with **NPHIES** (National Platform for Health Insurance Services) in Saudi Arabia using:
-- **FHIR R4** standard
-- **OAuth2** authentication
-- **RESTful API** communication
-- **Async polling** for responses
-
-### 2. **Check Current Status** (1 minute)
+Keep secrets out of `appsettings*.json`; use user-secrets:
 
 ```bash
-# Build the project
-dotnet build
-
-# Expected output: Build succeeded ?
+dotnet user-secrets --project NPhies_FHIR_Integration.ApiService set "ConnectionStrings:DefaultConnection" "Server=localhost,1433;Database=NPhiesDb;User Id=sa;Password=<password>;TrustServerCertificate=true"
 ```
-
-? **Current Status**: Code compiles successfully!
-
-### 3. **Configure Credentials** (2 minutes)
-
-Edit `NPhies_FHIR_Integration.ApiService/appsettings.json`:
-
-```json
-{
-  "Nphies": {
-    "BaseUrl": "https://nphies.sa/api/fhir",
-    "Auth": {
-      "ClientId": "[YOUR_CLIENT_ID]",       // ?? REPLACE THIS
-      "ClientSecret": "[YOUR_CLIENT_SECRET]" // ?? REPLACE THIS
-    }
-  }
-}
-```
-
-### 4. **Run Diagnostics** (< 1 minute)
 
 ```bash
-# Start application
-dotnet run --project NPhies_FHIR_Integration.ApiService
-
-# In another terminal, run diagnostics
-curl https://localhost:5001/api/NphiesDiagnostics/full
+dotnet user-secrets --project NPhies_FHIR_Integration.ApiService set "JwtSettings:Secret" "<random string of at least 32 characters>"
 ```
-
----
-
-## ?? System Overview
-
-### What This System Does:
-
-```
-??????????????????????????????????????????????????????????????
-?       YOUR HEALTHCARE PROVIDER SYSTEM      ?
-?       (Hospitals, Clinics, Pharmacies)        ?
-??????????????????????????????????????????????????????????????
-        ?? (This Integration)
-??????????????????????????????????????????????????????????????
-?        NPHIES PLATFORM   ?
-?        (Saudi National Health Insurance Platform)          ?
-??????????????????????????????????????????????????????????????
-            ??
-??????????????????????????????????????????????????????????????
-?     INSURANCE COMPANIES  ?
-?      (Payers - Coverage & Claims Processing) ?
-??????????????????????????????????????????????????????????????
-```
-
-### Key Workflows Implemented:
-
-1. **Eligibility Check** ?
-   - Verify patient insurance coverage
-   - Check benefits and coverage limits
-   - Validate policy status
-
-2. **Pre-Authorization** ?
-   - Request approval for planned procedures
-   - Get authorization codes
-   - Understand coverage for services
-
-3. **Claim Submission** ?
-   - Submit insurance claims
-   - Get adjudication results
-   - Receive payment information
-
-4. **Status Polling** ?
-   - Check request status
-   - Handle async responses
-   - Auto-retry with backoff
-
----
-
-## ?? Key Features
-
-### Security ?
-- ? OAuth2 Client Credentials Flow
-- ? TLS 1.2+ encryption
-- ? Token caching & auto-refresh
-- ? Audit logging
-
-### Reliability ?
-- ? Retry with exponential backoff
-- ? Circuit breaker pattern
-- ? Timeout policies
-- ? Error handling
-
-### FHIR Compliance ?
-- ? FHIR R4 standard
-- ? Saudi NPHIES profiles
-- ? Valid resource structures
-- ? Proper terminology
-
-### Developer Experience ?
-- ? Clean architecture
-- ? Comprehensive logging
-- ? Health check endpoints
-- ? Diagnostic tools
-- ? Complete documentation
-
----
-
-## ?? Project Files
-
-### Main Projects:
-
-```
-NPhies_FHIR_Integration/
-?
-??? NPhies_FHIR_Integration.ApiService/       # ?? REST API
-?   ??? Controllers/
-?  ??? EligibilityController.cs
-?       ??? ClaimController.cs
-?     ??? PreAuthController.cs
-?   ??? NphiesDiagnosticsController.cs  ? NEW
-?
-??? NPhies_FHIR_Integration.Application/        # ?? Business Logic
-?   ??? Services/
-?       ??? Orchestration/    # Workflow coordination
-?       ??? FHIR/             # FHIR management
-?       ??? Auth/    # OAuth2
-?  ??? Polling/  # Async responses
-?       ??? Diagnostics/      # Health checks ? NEW
-?
-??? NPhies_FHIR_Integration.Infrastructure/     # ?? Data & External APIs
-?   ??? NPhiesIntegration/    # NPHIES client
-?   ??? Data/   # Database
-?   ??? Repositories/    # Data access
-?
-??? NPhies_FHIR_Integration.Domain/   # ?? Core Entities
-    ??? Entities/
-        ??? Patient.cs
-        ??? Coverage.cs
-        ??? Claim.cs
-  ??? ...
-```
-
----
-
-## ?? Testing Your Integration
-
-### Step 1: Run Diagnostics
 
 ```bash
-# Full system check
-GET /api/NphiesDiagnostics/full
-
-# Individual component tests
-GET /api/NphiesDiagnostics/transport-security  # Check HTTPS/TLS
-GET /api/NphiesDiagnostics/authentication      # Test OAuth2
-GET /api/NphiesDiagnostics/endpoints           # Test NPHIES availability
-GET /api/NphiesDiagnostics/health    # Quick health check
+dotnet user-secrets --project NPhies_FHIR_Integration.ApiService set "Seed:AdminPassword" "<initial admin password>"
 ```
 
-### Step 2: Test Eligibility Check
+NPHIES settings (provider licence, client certificate, environment) are described in [docs/nphies-messaging-core.md](docs/nphies-messaging-core.md#configuration-nphies-section). Without a certificate you can use the built-in simulator by setting `Nphies:Sandbox:Enabled=true`.
+
+### 2. Start the API
 
 ```bash
-POST /api/eligibility/check
-{
-  "patientId": "PAT-001",
-  "coverageId": "COV-001",
-  "providerId": "ORG-PROVIDER",
-  "insurerId": "ORG-INSURER"
-}
+dotnet run --project NPhies_FHIR_Integration.ApiService --launch-profile https
 ```
 
-### Step 3: Test Claim Submission
+In Development the API applies migrations, seeds sample data and creates the `admin` user. It listens on `https://localhost:7590`.
+
+### 3. Start the frontend
 
 ```bash
-POST /api/claims/submit
-{
-  "patientId": "PAT-001",
-  "coverageId": "COV-001",
-  "items": [...],
-  "diagnoses": [...]
-}
+cd frontend
 ```
 
----
-
-## ?? Configuration Checklist
-
-Before deploying to production:
-
-- [ ] **NPHIES Credentials**
-  - [ ] ClientId configured
-  - [ ] ClientSecret configured
-  - [ ] BaseUrl verified
-
-- [ ] **Database**
-  - [ ] Connection string set
-  - [ ] Migrations applied
-  - [ ] Backup strategy configured
-
-- [ ] **Security**
-  - [ ] TLS 1.2+ enabled
-  - [ ] Secrets properly stored
-  - [ ] API authentication configured
-
-- [ ] **Monitoring**
-  - [ ] Health checks configured
-  - [ ] Logging enabled
-  - [ ] Alerts set up
-
-- [ ] **Testing**
-  - [ ] All diagnostics passing
-  - [ ] Eligibility tested
-  - [ ] Claims tested
-  - [ ] Error scenarios tested
-
----
-
-## ?? Troubleshooting
-
-### Common Issues:
-
-| Problem | Check | Solution |
-|---------|-------|----------|
-| Build fails | Dependencies | Run `dotnet restore` |
-| Auth fails | Credentials | Verify ClientId/Secret |
-| Connection timeout | Network | Check BaseUrl & firewall |
-| Invalid bundle | FHIR structure | Review logs for details |
-| Polling timeout | Configuration | Increase MaxDurationMinutes |
-
-### Debug Steps:
-
-1. **Check logs** in `logs/` directory
-2. **Run diagnostics** at `/api/NphiesDiagnostics/full`
-3. **Review configuration** in `appsettings.json`
-4. **Test connectivity** with diagnostic endpoints
-5. **Verify database** connection
-
----
-
-## ?? Learning Path
-
-### For New Team Members:
-
-1. **Day 1: Overview** (2-3 hours)
-   - Read `EXECUTIVE_SUMMARY.md`
-   - Review architecture diagrams
-   - Understand NPHIES basics
-
-2. **Day 2: Deep Dive** (4-6 hours)
-   - Read `NPHIES_INTEGRATION_COMPLETE_GUIDE.md`
-   - Follow code examples
-   - Understand each workflow
-
-3. **Day 3: Hands-On** (4-6 hours)
-   - Set up development environment
-   - Run application locally
-   - Test diagnostic endpoints
-   - Submit test requests
-
-4. **Day 4: Advanced** (4-6 hours)
-   - Study error handling
-   - Understand polling mechanism
-   - Review database schema
-   - Practice troubleshooting
-
-### Recommended Reading Order:
-
-1. ?? This document (README.md)
-2. ?? EXECUTIVE_SUMMARY.md
-3. ?? NPHIES_INTEGRATION_COMPLETE_GUIDE.md
-4. ?? NPHIES_QUICK_REFERENCE.md
-
----
-
-## ?? External Resources
-
-### NPHIES Resources:
-- **NPHIES Portal**: https://nphies.sa
-- **NPHIES Documentation**: Available on portal after login
-- **Support**: Contact NPHIES support team
-
-### FHIR Resources:
-- **FHIR R4 Specification**: https://hl7.org/fhir/R4/
-- **FHIR Resource Index**: https://hl7.org/fhir/R4/resourcelist.html
-- **FHIR Validator**: https://validator.fhir.org/
-
-### .NET Resources:
-- **.NET Documentation**: https://docs.microsoft.com/dotnet/
-- **Entity Framework**: https://docs.microsoft.com/ef/core/
-- **Polly (Resilience)**: https://github.com/App-vNext/Polly
-
----
-
-## ?? Document Quick Links
-
-| I want to... | Go to... |
-|--------------|----------|
-| Understand what's been built | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) |
-| Learn how authentication works | [NPHIES_INTEGRATION_COMPLETE_GUIDE.md](NPHIES_INTEGRATION_COMPLETE_GUIDE.md#authentication--authorization) |
-| See FHIR bundle examples | [NPHIES_QUICK_REFERENCE.md](NPHIES_QUICK_REFERENCE.md#fhir-bundle-structure) |
-| Configure the system | [NPHIES_QUICK_REFERENCE.md](NPHIES_QUICK_REFERENCE.md#configuration-checklist) |
-| Test the integration | [NPHIES_INTEGRATION_COMPLETE_GUIDE.md](NPHIES_INTEGRATION_COMPLETE_GUIDE.md#testing) |
-| Debug an error | [NPHIES_INTEGRATION_COMPLETE_GUIDE.md](NPHIES_INTEGRATION_COMPLETE_GUIDE.md#error-handling) |
-| Understand polling | [NPHIES_INTEGRATION_COMPLETE_GUIDE.md](NPHIES_INTEGRATION_COMPLETE_GUIDE.md#polling-mechanism) |
-| Quick command reference | [NPHIES_QUICK_REFERENCE.md](NPHIES_QUICK_REFERENCE.md#quick-start-commands) |
-
----
-
-## ?? Pro Tips
-
-### For Developers:
-- Always run diagnostics before deploying
-- Check logs for detailed error information
-- Use the quick reference for FHIR examples
-- Test with mock data first
-
-### For Operations:
-- Monitor the `/health` endpoint
-- Set up alerts for circuit breaker trips
-- Review logs daily
-- Keep NPHIES credentials secure
-
-### For Testing:
-- Use diagnostic endpoints extensively
-- Test all error scenarios
-- Verify timeout handling
-- Check retry behavior
-
----
-
-## ?? Getting Help
-
-### Internal Support:
-1. Review this documentation
-2. Check application logs
-3. Run diagnostic endpoints
-4. Contact development team
-
-### External Support:
-1. NPHIES Portal support
-2. FHIR community forums
-3. .NET community resources
-
----
-
-## ? Quick Start Checklist
-
-- [ ] Read this README
-- [ ] Review EXECUTIVE_SUMMARY.md
-- [ ] Configure NPHIES credentials
-- [ ] Run `dotnet build`
-- [ ] Run `dotnet run`
-- [ ] Test `/api/NphiesDiagnostics/health`
-- [ ] Review logs
-- [ ] Test eligibility endpoint
-- [ ] Celebrate! ??
-
----
-
-## ?? System Status
-
-```
-? Build Status: SUCCESS
-? Code Quality: HIGH
-? Documentation: COMPLETE
-? Architecture: PRODUCTION-READY
-? Testing Tools: IMPLEMENTED
-?? NPHIES Connection: NEEDS CREDENTIALS
+```bash
+npm ci
 ```
 
----
+```bash
+npm run dev
+```
 
-## ?? What's Next?
+Open `http://localhost:5173`. Vite proxies `/api` to the API. Copy `frontend/.env.example` to `frontend/.env` if you need to change the defaults.
 
-1. **Configure NPHIES credentials** in `appsettings.json`
-2. **Run diagnostic tests** to verify connectivity
-3. **Test eligibility workflow** with real data
-4. **Test claim submission** workflow
-5. **Deploy to staging** environment
-6. **Production deployment** after testing
+## Tests
 
----
+The RCM workflow tests need SQL Server. Start a throw-away instance with Docker:
 
-## ?? Version History
+```bash
+docker run -d --name nphies-sql -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=Test_Passw0rd!" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+```
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2024-01-XX | Initial release |
-| | | - Complete NPHIES integration |
-| | | - Diagnostic system |
-| | | - Full documentation |
+Point the tests at it. Without this variable they use `localhost` with Windows authentication, and are marked inconclusive if no server is reachable.
 
----
+```bash
+export NPHIES_TEST_SQLSERVER="Server=localhost,1433;User Id=sa;Password=Test_Passw0rd!;TrustServerCertificate=true"
+```
 
-**?? Remember**: This is a complex system integrating with a national health insurance platform. Take time to understand each component, test thoroughly, and don't hesitate to refer back to the documentation!
+```bash
+dotnet test NPhies_FHIR_Integration.sln
+```
 
-**?? You're ready to go!** Start with the [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) if you haven't already.
+Set `NPHIES_TEST_REQUIRE_SQLSERVER=true` to make the run fail, instead of skipping, when the database is unreachable. CI does this.
 
----
+Each test database is created with a unique name and dropped at the end of the run.
 
-**Document Version:** 1.0  
-**Last Updated:** $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")  
-**Status:** ? Complete & Ready for Use  
-**Repository:** https://github.com/sibtaincs/NPhies_FHIR_Integration
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`:
+
+- **Backend:** restore, Release build, both test projects against a SQL Server service container; test results are uploaded as an artifact.
+- **Frontend:** `npm ci`, lint and production build.
+
+## Documentation
+
+| Document | Topic |
+|---|---|
+| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | Current status, known defects, roadmap |
+| [docs/nphies-messaging-core.md](docs/nphies-messaging-core.md) | Building, validating, sending and parsing NPHIES messages; configuration |
+| [docs/rcm-workflows.md](docs/rcm-workflows.md) | RCM workflows, claim statuses, payments, denials, routes |
+| [docs/RCM_SYSTEM_OVERVIEW.md](docs/RCM_SYSTEM_OVERVIEW.md) | System overview |
+| [docs/RBAC_ROLES_PERMISSIONS.md](docs/RBAC_ROLES_PERMISSIONS.md) | Roles and permissions |
+| [docs/master-data.md](docs/master-data.md) | Master data |
+| [docs/CODEABLE_CONCEPTS_EXPLAINED.md](docs/CODEABLE_CONCEPTS_EXPLAINED.md) | NPHIES code systems |
+| [docs/archive](docs/archive) | Superseded guides, kept for reference |
