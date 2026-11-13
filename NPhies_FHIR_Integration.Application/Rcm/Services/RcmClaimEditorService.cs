@@ -661,6 +661,15 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         if (type == "institutional" && c.EncounterId is null) Add("Warning", "ENCOUNTER_MISSING", "header.encounterId", "No encounter recorded; one will be derived from the sub-type and service period. Record the actual encounter for in-patient stays.");
         if (c.ClaimSubType == "ip" && c.EncounterId is null && type != "institutional") Add("Warning", "ENCOUNTER_MISSING", "header.encounterId", "In-patient records should reference an encounter.");
 
+        // NPHIES requires an episode (Claim) and a patient invoice (every item); defaults are sent when empty.
+        if (string.IsNullOrWhiteSpace(c.EpisodeIdentifierValue))
+            Add("Info", "EPISODE_DEFAULT", "header.episode",
+                $"No episode of care is recorded; '{RcmInputMapper.DefaultEpisode(c)}' will be sent. Use the same episode for every claim of one admission or course of treatment.");
+        var itemsWithoutInvoice = c.Items.Where(i => string.IsNullOrWhiteSpace(i.PatientInvoiceValue)).Select(i => i.Sequence).OrderBy(s => s).ToList();
+        if (itemsWithoutInvoice.Count > 0)
+            Add("Info", "INVOICE_DEFAULT", "items",
+                $"Item(s) {string.Join(", ", itemsWithoutInvoice)} have no patient invoice number; '{RcmInputMapper.DefaultPatientInvoice(c)}' will be sent.");
+
         // Current IG (nphies-fs 1.0.0) conformance
         if (c.Provider != null && string.IsNullOrWhiteSpace(c.Provider.ProviderTypeCode))
             Add("Error", "PROVIDER_TYPE", "header.providerId", $"Provider '{c.Provider.OrganizationName}' has no provider type; NPHIES requires the provider-type extension (Masters → Organizations).");
