@@ -349,6 +349,9 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
     {
         var prefix = $"{source.ClaimNumber}-{suffix}";
         var existing = await _db.Claims.CountAsync(c => c.ClaimNumber.StartsWith(prefix), ct);
+        // Pin the source's episode and invoice numbers first so the clone (resubmission, update, extension,
+        // claim from a prior authorization) stays in the same episode of care instead of getting new defaults.
+        _mapper.EnsureClaimDefaults(source);
         var clone = (Claim)_db.Entry(source).CurrentValues.ToObject();
         clone.Id = Guid.NewGuid().ToString();
         clone.ClaimNumber = $"{prefix}{existing + 1}";

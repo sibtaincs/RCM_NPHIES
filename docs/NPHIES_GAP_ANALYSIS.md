@@ -111,7 +111,12 @@ Two smaller issues would also cause NPHIES rejections or wrong reports:
 - The poll service only sends unfiltered polls. Test case #10 asks for a poll that includes only `advanced-authorization`. The builder already supports the filters (`PollRequestInput.IncludeMessageTypes`, `ExcludeMessageTypes`, `Period`, `Count`), but `RcmPollService` and `POST api/rcm/messages/poll` don't expose them.
 - Blocks Authorization #10.
 
-**G5. Mandatory `episode` and `patientInvoice`.**
+**G5. Mandatory `episode` and `patientInvoice`.** *Fixed:*
+- When empty, `ep_<ClaimNumber>` and `inv_<ClaimNumber>` are sent and stored on the claim, and clones keep the original episode.
+- The claim editor shows an Info notice before sending.
+- Tests: `RcmClaimDefaultsTests`.
+
+The original finding:
 - The IG profiles make `Claim.extension:episode` 1..1 and `Claim.item.extension:patientInvoice` 1..1 for every claim type; see also IG section 7.4.2.
 - `RcmInputMapper` only adds them when `EpisodeIdentifierValue` and `PatientInvoiceValue` are filled in. The claim editor's health rules don't require them.
 - With the default `ProfileValidation:Mode=Warn`, such a claim is still sent, and NPHIES rejects it.
@@ -121,7 +126,12 @@ Two smaller issues would also cause NPHIES rejections or wrong reports:
 
 ### Priority 2: wrong behavior or data
 
-**G7. Denial categories.**
+**G7. Denial categories.** *Fixed:*
+- BE codes now map to `BillingError` and SE codes to `SupportingEvidence`.
+- The migration `FixDenialCategoriesForNphiesRejectionCodes` corrects stored denials.
+- Tests: `DenialCategoryTests`.
+
+The original finding:
 - The IG (section 6.3.10.2) defines five rejection categories: Administrative (AD), Coverage (CV), Medical Necessity (MN), Supporting Evidence (SE) and Billing Errors (BE).
 - `RcmResponseIngestor.DenialCategory` maps `BE` to "Benefit" and `SE` to "Coding". Denial reports, analytics and appeal work queues therefore group these denials under the wrong headings.
 - One-line fixes, plus a data fix for existing `ClaimDenials` rows.
@@ -194,7 +204,7 @@ These were checked and need no work for certification:
 
 ## Suggested order of work
 
-1. **G5 and G7.** Small changes that remove certain rejections and wrong reports.
+1. **G5 and G7.** Small changes that remove certain rejections and wrong reports. *Done.*
 2. **G1, G2 and G3:** newborn, transfer on eligibility, and the response references. Each one touches the builder inputs, the mapper, the claim editor and a docs-example test.
 3. **G4:** the APA lifecycle (reissue and cancel, provider cancel, filtered poll).
 4. **G8 and G9:** timeout recovery and the referral response details.

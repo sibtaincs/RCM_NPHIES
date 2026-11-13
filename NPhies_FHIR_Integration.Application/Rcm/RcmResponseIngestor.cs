@@ -376,15 +376,19 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         InsurerId = claim.InsurerId,
     };
 
-    /// <summary>Groups NPHIES adjudication reason codes (e.g. MN-1-1, BE-1-4, CV-1-3, AD-1-4, SE-1-6) into denial categories.</summary>
+    /// <summary>
+    /// Groups NPHIES adjudication reason codes into denial categories. The five NPHIES rejection categories
+    /// (IG V2.6 section 6.3.10.2) are Administrative (AD), Coverage (CV), Medical Necessity (MN),
+    /// Supporting Evidence (SE) and Billing Errors (BE); the remaining buckets cover older or non-NPHIES codes.
+    /// </summary>
     public static string DenialCategory(string? code)
     {
         var c = (code ?? string.Empty).ToUpperInvariant();
         if (c.StartsWith("MN")) return "MedicalNecessity";
-        if (c.StartsWith("BE")) return "Benefit";
+        if (c.StartsWith("BE")) return "BillingError";
         if (c.StartsWith("CV")) return "Coverage";
         if (c.StartsWith("AD")) return "Administrative";
-        if (c.StartsWith("SE")) return "Coding";
+        if (c.StartsWith("SE")) return "SupportingEvidence";
         if (c.StartsWith("PA") || c.Contains("AUTH")) return "Authorization";
         if (c.StartsWith("DU") || c.Contains("DUP")) return "Duplicate";
         if (c.StartsWith("N-") || c.StartsWith("CO")) return "Contractual";

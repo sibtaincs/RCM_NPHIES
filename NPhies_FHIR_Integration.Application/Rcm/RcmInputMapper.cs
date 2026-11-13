@@ -21,6 +21,14 @@ public interface IRcmInputMapper
     /// <summary>Ensures the claim has a provider identifier (system + value) and returns it.</summary>
     NphiesIdentifier EnsureClaimIdentifier(Claim claim);
 
+    /// <summary>
+    /// Fills the values the NPHIES claim profiles require (1..1) but that a user or HIS may leave empty:
+    /// <c>Claim.extension:episode</c> and <c>Claim.item.extension:patientInvoice</c>. Defaults are derived from
+    /// the claim number and written onto the entity, so a resubmission or follow-up cloned from this claim
+    /// inherits the same episode.
+    /// </summary>
+    void EnsureClaimDefaults(Claim claim);
+
     Task<ClaimRequestInput> MapClaimAsync(Claim claim, CancellationToken ct = default);
 
     PatientInput MapPatient(Patient patient);
@@ -81,6 +89,28 @@ public sealed class RcmInputMapper : IRcmInputMapper
         return new NphiesIdentifier(claim.ClaimIdentifierSystem!, claim.ClaimIdentifierValue!);
     }
 
+    public void EnsureClaimDefaults(Claim claim)
+    {
+        if (string.IsNullOrWhiteSpace(claim.EpisodeIdentifierValue))
+        {
+            claim.EpisodeIdentifierValue = DefaultEpisode(claim);
+            claim.EpisodeIdentifierSystem = null;
+        }
+
+        foreach (var item in claim.Items)
+        {
+            if (!string.IsNullOrWhiteSpace(item.PatientInvoiceValue)) continue;
+            item.PatientInvoiceValue = DefaultPatientInvoice(claim);
+            item.PatientInvoiceSystem = null;
+        }
+    }
+
+    /// <summary>Default episode-of-care identifier: one episode per original claim (clones copy it).</summary>
+    public static string DefaultEpisode(Claim claim) => $"ep_{claim.ClaimNumber}";
+
+    /// <summary>Default patient invoice number: the claim number, shared by every line of the claim.</summary>
+    public static string DefaultPatientInvoice(Claim claim) => $"inv_{claim.ClaimNumber}";
+
     public static bool IsPreAuth(Claim claim) =>
         claim.Use.Contains("preauth", StringComparison.OrdinalIgnoreCase);
 
@@ -119,8 +149,8 @@ public sealed class RcmInputMapper : IRcmInputMapper
             Transfer = claim.IsTransfer,
         };
 
-        if (!string.IsNullOrWhiteSpace(claim.EpisodeIdentifierValue))
-            input.Episode = new NphiesIdentifier(claim.EpisodeIdentifierSystem ?? IdentifierSystem("episode"), claim.EpisodeIdentifierValue!);
+        EnsureClaimDefaults(claim);
+        input.Episode = new NphiesIdentifier(claim.EpisodeIdentifierSystem ?? IdentifierSystem("episode"), claim.EpisodeIdentifierValue!);
 
         // A prior-auth carries the granted ref in ClaimResponse.PreAuthRef; only claims reference prior auths.
         if (!IsPreAuth(claim) && !string.IsNullOrWhiteSpace(claim.PreAuthorizationRef))
@@ -269,8 +299,8 @@ public sealed class RcmInputMapper : IRcmInputMapper
         else
             result.ServicedDate = Date(item.ServicedDate ?? claim.ServicedPeriodStart ?? claim.CreatedDate);
 
-        if (!string.IsNullOrWhiteSpace(item.PatientInvoiceValue))
-            result.PatientInvoice = new NphiesIdentifier(item.PatientInvoiceSystem ?? IdentifierSystem("patientInvoice"), item.PatientInvoiceValue!);
+        // EnsureClaimDefaults (called by MapClaimAsync before the items are mapped) guarantees a value.
+        result.PatientInvoice = new NphiesIdentifier(item.PatientInvoiceSystem ?? IdentifierSystem("patientInvoice"), item.PatientInvoiceValue!);
 
         var bodySite = item.BodySiteCode ?? oral?.ToothCode;
         if (!string.IsNullOrWhiteSpace(bodySite))

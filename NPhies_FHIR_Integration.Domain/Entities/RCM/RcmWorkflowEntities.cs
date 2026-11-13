@@ -77,7 +77,7 @@ public class ClaimDenial : BaseEntity
     public int? ItemSequence { get; set; }
     public string ReasonCode { get; set; } = string.Empty;
     public string? ReasonDisplay { get; set; }
-    /// <summary>Category bucket (e.g. Medical necessity, Coverage, Coding, Administrative, Technical).</summary>
+    /// <summary>Category bucket (e.g. Administrative, Coverage, MedicalNecessity, SupportingEvidence, BillingError, Technical).</summary>
     public string Category { get; set; } = "Other";
     public decimal SubmittedAmount { get; set; }
     public decimal DeniedAmount { get; set; }

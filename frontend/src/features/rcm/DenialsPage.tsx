@@ -14,7 +14,8 @@ import { ClaimTimelineDrawer } from './ClaimTimelineDrawer';
 import { InsurerSelect, Kpi, PageHeader, showError } from './shared';
 
 /** Mirrors RcmResponseIngestor.DenialCategory and RcmDenialStatus. */
-const CATEGORIES = ['MedicalNecessity', 'Benefit', 'Coverage', 'Administrative', 'Coding', 'Authorization', 'Duplicate', 'Contractual', 'Technical', 'Other'];
+// The first five are the NPHIES rejection categories (AD, CV, MN, SE, BE); the rest cover older or non-NPHIES codes.
+const CATEGORIES = ['Administrative', 'Coverage', 'MedicalNecessity', 'SupportingEvidence', 'BillingError', 'Authorization', 'Duplicate', 'Contractual', 'Technical', 'Other'];
 const DENIAL_STATUSES = ['Open', 'Appealed', 'Resubmitted', 'Accepted', 'WrittenOff', 'Overturned', 'Upheld'];
 const MANUAL_STATUSES = ['Open', 'Accepted', 'WrittenOff'];
 
