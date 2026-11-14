@@ -12,13 +12,12 @@ Revenue cycle management for healthcare providers in Saudi Arabia, integrated wi
 | Path | Contents |
 |---|---|
 | `NPhies_FHIR_Integration.ApiService` | REST API host: controllers, JWT security, background poll worker |
-| `NPhies_FHIR_Integration.Application` | `Nphies/`: messaging core (builder, validator, parser, client). `Rcm/`: RCM workflows. `Services/`: older services being consolidated |
+| `NPhies_FHIR_Integration.Application` | `Nphies/`: messaging core (builder, validator, parser, client). `Rcm/`: RCM workflows. `Services/`: the claim review gate and the audit and RBAC interfaces |
 | `NPhies_FHIR_Integration.Infrastructure` | EF Core `ApplicationDbContext`, migrations, seeders, mTLS transport, certificate provider |
 | `NPhies_FHIR_Integration.Domain` | Entities |
 | `NPhies_FHIR_Integration.Common` | Shared constants and models |
 | `NPhies_FHIR_Integration.AppHost`, `.ServiceDefaults` | .NET Aspire host and defaults (OpenTelemetry, health checks) |
 | `NPhies_FHIR_Integration.Tests` | MSTest: messaging core, RCM workflows (needs SQL Server), security |
-| `NPhies_FHIR_Integration.LegacyTests` | xUnit tests for the older `Services/` code |
 | `frontend` | React RCM console |
 | `nphies-fhir-docs-main` | NPHIES reference material: IG, code systems, validation codes, test cases, example messages |
 | `docs` | Design documentation |
@@ -87,6 +86,12 @@ Point the tests at it. Without this variable they use `localhost` with Windows a
 export NPHIES_TEST_SQLSERVER="Server=localhost,1433;User Id=sa;Password=Test_Passw0rd!;TrustServerCertificate=true"
 ```
 
+For a local SQL Server Express instance with Windows authentication:
+
+```bash
+export NPHIES_TEST_SQLSERVER='Server=.\SQLEXPRESS;Integrated Security=true;TrustServerCertificate=true'
+```
+
 ```bash
 dotnet test NPhies_FHIR_Integration.sln
 ```
@@ -99,7 +104,7 @@ Each test database is created with a unique name and dropped at the end of the r
 
 `.github/workflows/ci.yml` runs on every pull request and on pushes to `main`:
 
-- **Backend:** restore, Release build, both test projects against a SQL Server service container; test results are uploaded as an artifact.
+- **Backend:** restore, Release build, the test project against a SQL Server service container; test results are uploaded as an artifact.
 - **Frontend:** `npm ci`, lint and production build.
 
 ## Documentation
