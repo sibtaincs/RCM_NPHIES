@@ -14,11 +14,6 @@ using NPhies_FHIR_Integration.Application.Nphies.Messaging;
 using NPhies_FHIR_Integration.Application.Nphies.Parsing;
 using NPhies_FHIR_Integration.Application.Nphies.Sandbox;
 using NPhies_FHIR_Integration.Application.Nphies.Validation;
-using NPhies_FHIR_Integration.Application.Services.Auth;
-using NPhies_FHIR_Integration.Application.Services.FHIR;
-using NPhies_FHIR_Integration.Application.Services.Http;
-using NPhies_FHIR_Integration.Application.Services.Orchestration;
-using NPhies_FHIR_Integration.Application.Services.Polling;
 using NPhies_FHIR_Integration.Infrastructure.Configuration;
 using NPhies_FHIR_Integration.Infrastructure.Data.Configurations;
 using NPhies_FHIR_Integration.Infrastructure.Nphies;
@@ -33,12 +28,11 @@ namespace NPhies_FHIR_Integration.Application.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds all NPHIES integration services (messaging core plus the legacy orchestration services).
+    /// Adds the NPHIES integration services: the messaging core and its health checks.
     /// </summary>
     public static IServiceCollection AddNphiesIntegration(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddNphiesMessagingCore(configuration);
-        services.AddNphiesServices();
         services.AddMemoryCache();
         services.AddNphiesHealthChecks();
         return services;
@@ -110,23 +104,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddNphiesServices(this IServiceCollection services)
-    {
-        // Legacy OAuth service kept for the diagnostics endpoint; NPHIES messaging itself uses mutual TLS.
-        services.AddHttpClient();
-        services.AddSingleton<IAuthenticationService, NphiesAuthenticationService>();
-        services.AddScoped<INphiesHttpClient, NphiesHttpClient>();
-        services.AddScoped<IEntityToFhirMapper, EntityToFhirMapper>();
-        services.AddScoped<IFhirBundleService, FhirBundleService>();
-        services.AddScoped<INphiesPollingService, NphiesPollingService>();
-        services.AddScoped<INphiesOrchestrationService, NphiesOrchestrationService>();
-        return services;
-    }
-
     private static IServiceCollection AddNphiesHealthChecks(this IServiceCollection services)
     {
         services.AddHealthChecks()
-            .AddCheck<NphiesHealthCheck>("nphies_api", HealthStatus.Degraded, new[] { "nphies", "api", "external", "ready" })
             .AddCheck<NphiesCertificateHealthCheck>("nphies_certificate", HealthStatus.Degraded, new[] { "nphies", "mtls", "security", "ready" })
             .AddCheck<DatabaseHealthCheck>("database", HealthStatus.Unhealthy, new[] { "database", "sql", "data", "ready" });
         return services;
