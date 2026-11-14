@@ -17,7 +17,7 @@ public class RcmClaimEditorTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     private static ClaimEditDto NewDraft(RcmTestHost.Seed seed) => new()
     {

@@ -25,7 +25,7 @@ public class RcmNewbornAndTransferTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     [TestMethod]
     public async Task Newborn_eligibility_uses_the_mothers_coverage_and_sends_the_newborn_extension()

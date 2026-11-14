@@ -204,19 +204,9 @@ if (app.Environment.IsDevelopment())
             logger.LogInformation("🔍 Checking database connection and pending migrations...");
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            // Test connection first
-            var canConnect = await context.Database.CanConnectAsync();
-            if (!canConnect)
-            {
-                logger.LogError("❌ Cannot connect to database. Please check:");
-                logger.LogError("   1. SQL Server is running");
-                logger.LogError("   2. Connection string is correct");
-                logger.LogError("   3. Database permissions are set");
-                throw new Exception("Database connection failed");
-            }
-
-            logger.LogInformation("✅ Database connection successful");
-
+            // MigrateAsync creates the database when it does not exist yet, so there is no
+            // CanConnectAsync() gate here: that returns false for a missing database and used
+            // to skip migrations entirely. A server that is truly unreachable throws below.
             var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
             if (pendingMigrations.Any())
             {

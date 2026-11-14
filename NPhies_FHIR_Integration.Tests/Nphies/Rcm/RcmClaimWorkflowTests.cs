@@ -15,7 +15,7 @@ public class RcmClaimWorkflowTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     [TestMethod]
     public async Task Claim_submit_ingests_approved_adjudication_from_7b()
@@ -70,7 +70,7 @@ public class RcmClaimWorkflowTests
     [TestMethod]
     public async Task Transaction_json_returns_logged_request_and_response()
     {
-        await _host.DisposeAsync();
+        await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
         _host = await RcmTestHost.CreateAsync(new() { ["Nphies:EnableMessageAudit"] = "true" });
         var seed = await _host.SeedPartiesAsync();
         var claim = await _host.SeedClaimAsync(seed, "req_299060");
