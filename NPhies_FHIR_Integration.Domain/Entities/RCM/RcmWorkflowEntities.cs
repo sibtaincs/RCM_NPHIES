@@ -124,6 +124,8 @@ public class EligibilityCheck : BaseEntity
     public DateTime? BenefitPeriodStart { get; set; }
     public DateTime? BenefitPeriodEnd { get; set; }
     public string? ResponseIdentifier { get; set; }
+    /// <summary>System of <see cref="ResponseIdentifier"/>; claims reference this response by system + value.</summary>
+    public string? ResponseIdentifierSystem { get; set; }
     /// <summary>Benefit items as JSON (category, network, authorizationRequired, allowed/used).</summary>
     public string? BenefitsJson { get; set; }
     /// <summary>Coverages discovered by a discovery request, as JSON.</summary>

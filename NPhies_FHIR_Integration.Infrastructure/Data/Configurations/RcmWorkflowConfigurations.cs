@@ -102,6 +102,7 @@ public class EligibilityCheckConfiguration : IEntityTypeConfiguration<Eligibilit
         b.Property(x => x.Disposition).HasMaxLength(1000);
         b.Property(x => x.NotInForceReason).HasMaxLength(500);
         b.Property(x => x.ResponseIdentifier).HasMaxLength(200);
+        b.Property(x => x.ResponseIdentifierSystem).HasMaxLength(500);
 
         b.HasOne(x => x.Patient).WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Coverage).WithMany().HasForeignKey(x => x.CoverageId).OnDelete(DeleteBehavior.Restrict);

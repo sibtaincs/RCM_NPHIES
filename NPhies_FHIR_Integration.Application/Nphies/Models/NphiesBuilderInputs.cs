@@ -354,6 +354,10 @@ public sealed class ClaimRequestInput : NphiesMessageInput
     public string? EligibilityOfflineReference { get; set; }
     public string? EligibilityOfflineDate { get; set; }
     public string? AuthorizationOfflineDate { get; set; }
+    /// <summary>Identifier of an online eligibility response (extension-eligibility-response); prior auths and claims.</summary>
+    public NphiesIdentifier? EligibilityResponse { get; set; }
+    /// <summary>Identifier of the approved prior-auth response or advanced authorization (extension-priorauthresponse); claims only.</summary>
+    public NphiesIdentifier? PriorAuthResponse { get; set; }
     public NphiesIdentifier? Episode { get; set; }
     public bool? Transfer { get; set; }
     /// <summary>extension-newborn: the patient is a newborn using the subscriber's (mother's) coverage.</summary>

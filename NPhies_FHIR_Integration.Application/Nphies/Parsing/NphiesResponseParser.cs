@@ -171,6 +171,7 @@ public sealed class NphiesResponseParser : INphiesResponseParser
     {
         Id = response.Id,
         Identifier = response.Identifier.FirstOrDefault()?.Value,
+        IdentifierSystem = response.Identifier.FirstOrDefault()?.System,
         RequestIdentifier = response.Request?.Identifier?.Value,
         Purposes = response.PurposeElement.Select(p => p.ObjectValue as string).OfType<string>().ToList(),
         Outcome = response.OutcomeElement?.ObjectValue as string,

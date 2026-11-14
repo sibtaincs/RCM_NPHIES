@@ -51,6 +51,9 @@ public class ClaimConfiguration : IEntityTypeConfiguration<Claim>
         entity.Property(c => c.PrescriptionIdentifier).HasMaxLength(100);
         entity.Property(c => c.OriginalPrescriptionIdentifier).HasMaxLength(100);
         entity.Property(c => c.PreAuthorizationRef).HasMaxLength(100);
+        entity.Property(c => c.EligibilityCheckId).HasMaxLength(100);
+        entity.Property(c => c.PriorAuthResponseIdentifierSystem).HasMaxLength(500);
+        entity.Property(c => c.PriorAuthResponseIdentifierValue).HasMaxLength(200);
 
         // Billable Period
         entity.Property(c => c.BillablePeriodStart);

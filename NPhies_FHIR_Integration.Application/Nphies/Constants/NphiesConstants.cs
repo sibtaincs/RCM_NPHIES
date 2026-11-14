@@ -67,6 +67,8 @@ public static class NphiesExtensions
     public const string AuthorizationOfflineDate = B + "authorization-offline-date";
     public const string Episode = B + "episode";
     public const string Transfer = B + "transfer";
+    /// <summary>Claim only: reference (by identifier) to the approved prior-auth response or advanced authorization.</summary>
+    public const string PriorAuthResponse = B + "priorauthresponse";
     /// <summary>Newborn using the mother's coverage (IG 6.5): CoverageEligibilityRequest, Claim (prior auth and claim).</summary>
     public const string Newborn = B + "newborn";
     public const string Encounter = B + "encounter";

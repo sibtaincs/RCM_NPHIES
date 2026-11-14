@@ -731,6 +731,7 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         check.BenefitPeriodStart = ParseDate(insurance?.BenefitPeriodStart);
         check.BenefitPeriodEnd = ParseDate(insurance?.BenefitPeriodEnd);
         check.ResponseIdentifier = elig.Identifier;
+        check.ResponseIdentifierSystem = Truncate(elig.IdentifierSystem, 500);
         check.BenefitsJson = elig.Insurance.Count == 0 ? null : JsonSerializer.Serialize(elig.Insurance.Select(i => new
         {
             i.InForce,

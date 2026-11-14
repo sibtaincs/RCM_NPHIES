@@ -412,4 +412,17 @@ public DateTime? AccidentDate { get; set; }
     /// belong to the mother, who is sent as the coverage subscriber.
     /// </summary>
     public bool IsNewborn { get; set; }
+
+    /// <summary>
+    /// The online eligibility check this claim or prior authorization relies on. Its response identifier is sent as
+    /// Claim.extension:eligibilityResponse.
+    /// </summary>
+    public string? EligibilityCheckId { get; set; }
+
+    /// <summary>
+    /// Identifier (system + value) of the approved prior-authorization response or advanced authorization this claim
+    /// relies on, sent as Claim.extension:priorauthResponse. Set when the claim is created from or linked to it.
+    /// </summary>
+    public string? PriorAuthResponseIdentifierSystem { get; set; }
+    public string? PriorAuthResponseIdentifierValue { get; set; }
 }

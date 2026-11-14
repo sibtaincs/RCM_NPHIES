@@ -406,6 +406,14 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
             claim.Extension.Add(new Extension(NphiesExtensions.Transfer, new FhirBoolean(input.Transfer.Value)));
         if (input.Newborn.HasValue)
             claim.Extension.Add(new Extension(NphiesExtensions.Newborn, new FhirBoolean(input.Newborn.Value)));
+        // Earlier responses are not in this bundle, so they are referenced by business identifier (as in the IG examples).
+        if (input.EligibilityResponse != null)
+            claim.Extension.Add(new Extension(NphiesExtensions.EligibilityResponse,
+                new ResourceReference { Identifier = Identifier(input.EligibilityResponse) }));
+        // The prior-auth profiles do not allow priorauthResponse; only claims carry it.
+        if (input.PriorAuthResponse != null && input.Use == NphiesClaimUse.Claim)
+            claim.Extension.Add(new Extension(NphiesExtensions.PriorAuthResponse,
+                new ResourceReference { Identifier = Identifier(input.PriorAuthResponse) }));
         if (encounterUrl != null)
             claim.Extension.Add(new Extension(NphiesExtensions.Encounter, Ref(encounterUrl)));
     }

@@ -101,6 +101,8 @@ public sealed class NphiesEligibilityResult
 {
     public string? Id { get; init; }
     public string? Identifier { get; init; }
+    /// <summary>System of <see cref="Identifier"/>; claims reference the response by system + value.</summary>
+    public string? IdentifierSystem { get; init; }
     public string? RequestIdentifier { get; init; }
     public List<string> Purposes { get; init; } = new();
     public string? Outcome { get; init; }
