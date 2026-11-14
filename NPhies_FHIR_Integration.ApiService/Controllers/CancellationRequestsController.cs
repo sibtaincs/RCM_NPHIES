@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -17,7 +17,6 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers;
 public class CancellationRequestsController : ControllerBase
 {
     private readonly IRepository<CancellationRequest> _cancellationRequestRepository;
-    private readonly IMapper _mapper;
     private readonly ILogger<CancellationRequestsController> _logger;
 
     /// <summary>
@@ -25,11 +24,9 @@ public class CancellationRequestsController : ControllerBase
     /// </summary>
     public CancellationRequestsController(
   IRepository<CancellationRequest> cancellationRequestRepository,
-        IMapper mapper,
    ILogger<CancellationRequestsController> logger)
   {
       _cancellationRequestRepository = cancellationRequestRepository ?? throw new ArgumentNullException(nameof(cancellationRequestRepository));
-     _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -59,7 +56,7 @@ public class CancellationRequestsController : ControllerBase
   .Take(pageSize)
      .ToList();
 
-    var requestDtos = _mapper.Map<List<TaskRequestDto>>(requests);
+    var requestDtos = LegacyDtoMapper.ToDtos(requests);
 
  _logger.LogInformation($"Retrieved {requestDtos.Count} cancellation requests (Page {pageNumber})");
        return Ok(new
@@ -102,7 +99,7 @@ if (request == null)
  return NotFound(new { message = "Cancellation request not found" });
    }
 
- var requestDto = _mapper.Map<TaskRequestDto>(request);
+ var requestDto = LegacyDtoMapper.ToDto(request);
             _logger.LogInformation($"Retrieved cancellation request: {id}");
       return Ok(requestDto);
         }
@@ -137,7 +134,7 @@ if (!validStatuses.Contains(status.ToLower()))
     }
 
        var requests = await _cancellationRequestRepository.FindAsync(t => t.Status == status && t.Code == "cancel");
-            var requestDtos = _mapper.Map<List<TaskRequestDto>>(requests);
+            var requestDtos = LegacyDtoMapper.ToDtos(requests);
 
        _logger.LogInformation($"Retrieved {requestDtos.Count} cancellation requests with status: {status}");
  return Ok(new { status = status, count = requestDtos.Count, items = requestDtos });
@@ -167,7 +164,7 @@ if (!validStatuses.Contains(status.ToLower()))
   }
 
   var requests = await _cancellationRequestRepository.FindAsync(t => t.ReasonCode == reasonCode && t.Code == "cancel");
- var requestDtos = _mapper.Map<List<TaskRequestDto>>(requests);
+ var requestDtos = LegacyDtoMapper.ToDtos(requests);
 
     _logger.LogInformation($"Retrieved {requestDtos.Count} cancellation requests with reason: {reasonCode}");
       return Ok(new { reasonCode = reasonCode, count = requestDtos.Count, items = requestDtos });
@@ -197,7 +194,7 @@ if (!validStatuses.Contains(status.ToLower()))
 }
 
 var requests = await _cancellationRequestRepository.FindAsync(t => t.OwnerId == ownerId && t.Code == "cancel");
-var requestDtos = _mapper.Map<List<TaskRequestDto>>(requests);
+var requestDtos = LegacyDtoMapper.ToDtos(requests);
 
        _logger.LogInformation($"Retrieved {requestDtos.Count} cancellation requests for owner: {ownerId}");
       return Ok(new { ownerId = ownerId, count = requestDtos.Count, items = requestDtos });
@@ -235,11 +232,11 @@ var requestDtos = _mapper.Map<List<TaskRequestDto>>(requests);
  // Ensure code is set to "cancel"
          createDto.Code = "cancel";
 
-       var request = _mapper.Map<CancellationRequest>(createDto);
+       var request = LegacyDtoMapper.ToEntity(createDto);
    await _cancellationRequestRepository.AddAsync(request);
      await _cancellationRequestRepository.SaveChangesAsync();
 
-var requestDto = _mapper.Map<TaskRequestDto>(request);
+var requestDto = LegacyDtoMapper.ToDto(request);
             _logger.LogInformation($"Created new cancellation request: {request.Id}");
 
      return CreatedAtAction(nameof(GetById), new { id = request.Id }, requestDto);
@@ -277,11 +274,11 @@ var requestDto = _mapper.Map<TaskRequestDto>(request);
      return NotFound(new { message = "Cancellation request not found" });
    }
 
- _mapper.Map(updateDto, request);
+ LegacyDtoUpdateMapper.Apply(updateDto, request);
    _cancellationRequestRepository.Update(request);
             await _cancellationRequestRepository.SaveChangesAsync();
 
-   var requestDto = _mapper.Map<TaskRequestDto>(request);
+   var requestDto = LegacyDtoMapper.ToDto(request);
      _logger.LogInformation($"Updated cancellation request: {id}");
 
  return Ok(requestDto);

@@ -1,4 +1,3 @@
-using AutoMapper;
 using Moq;
 using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Application.Services;
@@ -14,15 +13,6 @@ namespace NPhies_FHIR_Integration.Tests.Application;
 /// </summary>
 public class EligibilityServiceTests
 {
-    private IMapper CreateMapper()
-    {
-        var config = new MapperConfiguration(cfg =>
-        {
-            cfg.AddProfile<EligibilityMappingProfile>();
-        });
-        return config.CreateMapper();
-    }
-
   [Fact(Skip = "Phase 1: legacy engine bug, see docs/PROJECT_STATUS.md - EligibilityService wraps validation/not-found errors in InvalidOperationException, so callers cannot return 400/404")]
     public async Task SubmitEligibilityRequestAsync_ShouldThrowWhenPatientIdEmpty()
  {
@@ -32,7 +22,6 @@ public class EligibilityServiceTests
  var mockPatientRepo = new Mock<IPatientRepository>();
 var mockCoverageRepo = new Mock<ICoverageRepository>();
         var mockOrgRepo = new Mock<IOrganizationRepository>();
-   var mapper = CreateMapper();
   var mockFhirMapper = new Mock<IFhirToEntityMapper>();
 
 var service = new EligibilityService(
@@ -41,7 +30,6 @@ var service = new EligibilityService(
           mockPatientRepo.Object,
             mockCoverageRepo.Object,
        mockOrgRepo.Object,
-      mapper,
     mockFhirMapper.Object
         );
 
@@ -63,7 +51,6 @@ var service = new EligibilityService(
         var mockPatientRepo = new Mock<IPatientRepository>();
         var mockCoverageRepo = new Mock<ICoverageRepository>();
         var mockOrgRepo = new Mock<IOrganizationRepository>();
-        var mapper = CreateMapper();
 var mockFhirMapper = new Mock<IFhirToEntityMapper>();
 
   var service = new EligibilityService(
@@ -72,7 +59,6 @@ var mockFhirMapper = new Mock<IFhirToEntityMapper>();
   mockPatientRepo.Object,
             mockCoverageRepo.Object,
             mockOrgRepo.Object,
-      mapper,
    mockFhirMapper.Object
     );
 
@@ -94,7 +80,6 @@ var mockFhirMapper = new Mock<IFhirToEntityMapper>();
         var mockPatientRepo = new Mock<IPatientRepository>();
         var mockCoverageRepo = new Mock<ICoverageRepository>();
         var mockOrgRepo = new Mock<IOrganizationRepository>();
-        var mapper = CreateMapper();
         var mockFhirMapper = new Mock<IFhirToEntityMapper>();
 
         mockRequestRepo.Setup(r => r.AddAsync(It.IsAny<CoverageEligibilityRequest>()))
@@ -108,7 +93,6 @@ var mockFhirMapper = new Mock<IFhirToEntityMapper>();
           mockPatientRepo.Object,
             mockCoverageRepo.Object,
             mockOrgRepo.Object,
-            mapper,
   mockFhirMapper.Object
         );
 
@@ -150,7 +134,6 @@ var mockFhirMapper = new Mock<IFhirToEntityMapper>();
         var mockPatientRepo = new Mock<IPatientRepository>();
         var mockCoverageRepo = new Mock<ICoverageRepository>();
   var mockOrgRepo = new Mock<IOrganizationRepository>();
-        var mapper = CreateMapper();
         var mockFhirMapper = new Mock<IFhirToEntityMapper>();
 
         mockRequestRepo.Setup(r => r.GetWithDetailsAsync(requestId))
@@ -162,7 +145,6 @@ var mockFhirMapper = new Mock<IFhirToEntityMapper>();
         mockPatientRepo.Object,
             mockCoverageRepo.Object,
      mockOrgRepo.Object,
-   mapper,
             mockFhirMapper.Object
         );
 
@@ -186,7 +168,6 @@ var mockFhirMapper = new Mock<IFhirToEntityMapper>();
         var mockPatientRepo = new Mock<IPatientRepository>();
         var mockCoverageRepo = new Mock<ICoverageRepository>();
 var mockOrgRepo = new Mock<IOrganizationRepository>();
-        var mapper = CreateMapper();
         var mockFhirMapper = new Mock<IFhirToEntityMapper>();
 
       mockRequestRepo.Setup(r => r.GetWithDetailsAsync(requestId))
@@ -198,7 +179,6 @@ var mockOrgRepo = new Mock<IOrganizationRepository>();
 mockPatientRepo.Object,
         mockCoverageRepo.Object,
          mockOrgRepo.Object,
-      mapper,
    mockFhirMapper.Object
         );
 
@@ -224,7 +204,6 @@ mockPatientRepo.Object,
         var mockPatientRepo = new Mock<IPatientRepository>();
 var mockCoverageRepo = new Mock<ICoverageRepository>();
         var mockOrgRepo = new Mock<IOrganizationRepository>();
-        var mapper = CreateMapper();
       var mockFhirMapper = new Mock<IFhirToEntityMapper>();
 
  mockRequestRepo.Setup(r => r.GetPendingRequestsAsync())
@@ -236,7 +215,6 @@ var mockCoverageRepo = new Mock<ICoverageRepository>();
         mockPatientRepo.Object,
       mockCoverageRepo.Object,
             mockOrgRepo.Object,
-            mapper,
             mockFhirMapper.Object
       );
 
@@ -259,7 +237,6 @@ var mockCoverageRepo = new Mock<ICoverageRepository>();
         var mockPatientRepo = new Mock<IPatientRepository>();
      var mockCoverageRepo = new Mock<ICoverageRepository>();
         var mockOrgRepo = new Mock<IOrganizationRepository>();
-        var mapper = CreateMapper();
         var mockFhirMapper = new Mock<IFhirToEntityMapper>();
 
         mockPatientRepo.Setup(p => p.GetByIdAsync(patientId))
@@ -271,7 +248,6 @@ var mockCoverageRepo = new Mock<ICoverageRepository>();
     mockPatientRepo.Object,
      mockCoverageRepo.Object,
          mockOrgRepo.Object,
-          mapper,
  mockFhirMapper.Object
         );
 
@@ -295,7 +271,6 @@ var patientId = "pat-1";
  var mockPatientRepo = new Mock<IPatientRepository>();
   var mockCoverageRepo = new Mock<ICoverageRepository>();
       var mockOrgRepo = new Mock<IOrganizationRepository>();
-        var mapper = CreateMapper();
         var mockFhirMapper = new Mock<IFhirToEntityMapper>();
 
         mockPatientRepo.Setup(p => p.GetByIdAsync(patientId))
@@ -309,7 +284,6 @@ mockResponseRepo.Object,
             mockPatientRepo.Object,
    mockCoverageRepo.Object,
      mockOrgRepo.Object,
-   mapper,
             mockFhirMapper.Object
      );
 

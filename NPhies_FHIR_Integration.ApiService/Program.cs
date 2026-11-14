@@ -65,12 +65,6 @@ else
     builder.Services.AddDistributedMemoryCache(); // For development
 }
 
-// Add AutoMapper
-builder.Services.AddAutoMapper(
-    typeof(ApplicationMappingProfile),
-    typeof(EligibilityMappingProfile),
-    typeof(MasterDataMappingProfile));
-
 // 🔒 ADD COMPREHENSIVE SECURITY SYSTEM
 builder.Services.AddComprehensiveSecurity(builder.Configuration);
 

@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Application.Services.Orchestration;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -104,7 +104,6 @@ public interface IClaimService
 public class ClaimService : IClaimService
 {
     private readonly IClaimRepository _claimRepository;
-    private readonly IMapper _mapper;
     private readonly INphiesOrchestrationService? _orchestrationService;
     private readonly NPhies_FHIR_Integration.Application.Rcm.Services.IRcmClaimWorkflowService? _rcmClaims;
 
@@ -116,12 +115,10 @@ public class ClaimService : IClaimService
     /// </summary>
     public ClaimService(
         IClaimRepository claimRepository,
-      IMapper mapper,
         INphiesOrchestrationService? orchestrationService = null,
         NPhies_FHIR_Integration.Application.Rcm.Services.IRcmClaimWorkflowService? rcmClaims = null)
     {
         _claimRepository = claimRepository ?? throw new ArgumentNullException(nameof(claimRepository));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
   _orchestrationService = orchestrationService;
         _rcmClaims = rcmClaims;
     }
@@ -133,7 +130,7 @@ public class ClaimService : IClaimService
     {
         try
         {
-            var claim = _mapper.Map<Claim>(dto);
+            var claim = LegacyDtoMapper.ToEntity(dto);
             claim.Status = "active";
             claim.CreatedAt = DateTime.UtcNow;
             NormalizeClaimLines(claim, dto.Total);
@@ -141,7 +138,7 @@ public class ClaimService : IClaimService
             await _claimRepository.AddAsync(claim);
             await _claimRepository.SaveChangesAsync();
 
-            return _mapper.Map<ClaimDto>(claim);
+            return LegacyDtoMapper.ToDto(claim);
         }
         catch (Exception ex)
         {
@@ -190,7 +187,7 @@ public class ClaimService : IClaimService
         try
         {
             var claim = await _claimRepository.GetByIdAsync(claimId);
-            return claim != null ? _mapper.Map<ClaimDto>(claim) : null;
+            return claim != null ? LegacyDtoMapper.ToDto(claim) : null;
         }
         catch (Exception ex)
         {
@@ -214,7 +211,7 @@ public class ClaimService : IClaimService
         try
         {
             var claim = await _claimRepository.GetByClaimNumberAsync(claimNumber);
-            return claim != null ? _mapper.Map<ClaimDto>(claim) : null;
+            return claim != null ? LegacyDtoMapper.ToDto(claim) : null;
         }
         catch (Exception ex)
         {
@@ -230,7 +227,7 @@ public class ClaimService : IClaimService
         try
         {
             var claims = await _claimRepository.GetByPatientIdAsync(patientId);
-            return _mapper.Map<IEnumerable<ClaimDto>>(claims);
+            return LegacyDtoMapper.ToDtos(claims);
         }
         catch (Exception ex)
         {
@@ -254,7 +251,7 @@ public class ClaimService : IClaimService
         try
         {
             var claims = await _claimRepository.GetAllAsync();
-            return _mapper.Map<IEnumerable<ClaimDto>>(claims);
+            return LegacyDtoMapper.ToDtos(claims);
         }
         catch (Exception ex)
         {
@@ -270,7 +267,7 @@ public class ClaimService : IClaimService
         try
         {
             var claims = await _claimRepository.GetByStatusAsync(status);
-            return _mapper.Map<IEnumerable<ClaimDto>>(claims);
+            return LegacyDtoMapper.ToDtos(claims);
         }
         catch (Exception ex)
         {
@@ -296,7 +293,7 @@ public class ClaimService : IClaimService
         {
             var status = claim.Status;
             var total = claim.Total;
-            _mapper.Map(dto, claim);
+            LegacyDtoUpdateMapper.Apply(dto, claim);
             claim.Status = status;
             claim.Total = total;
             claim.FhirClaimBundle = null;
@@ -305,7 +302,7 @@ public class ClaimService : IClaimService
             _claimRepository.Update(claim);
             await _claimRepository.SaveChangesAsync();
 
-            return _mapper.Map<ClaimDto>(claim);
+            return LegacyDtoMapper.ToDto(claim);
         }
         catch (Exception ex)
         {
@@ -321,7 +318,7 @@ public class ClaimService : IClaimService
         try
         {
         var claim = await _claimRepository.GetWithDetailsAsync(claimId);
-            return claim != null ? _mapper.Map<ClaimDto>(claim) : null;
+            return claim != null ? LegacyDtoMapper.ToDto(claim) : null;
         }
      catch (Exception ex)
         {
@@ -528,7 +525,7 @@ public async Task<IEnumerable<ClaimDto>> GetClaimsAwaitingReviewAsync(string sta
        _ => throw new ArgumentException("Stage must be 'technical' or 'medical'.", nameof(stage))
         };
 
-        return _mapper.Map<IEnumerable<ClaimDto>>(pending);
+        return LegacyDtoMapper.ToDtos(pending);
     }
 
     /// <summary>
@@ -541,7 +538,7 @@ public async Task<IEnumerable<ClaimDto>> GetClaimsAwaitingReviewAsync(string sta
             c.IsApprovedForSubmission &&
             string.Equals(c.Status, "active", StringComparison.OrdinalIgnoreCase));
 
-        return _mapper.Map<IEnumerable<ClaimDto>>(ready);
+        return LegacyDtoMapper.ToDtos(ready);
     }
 
     /// <summary>
@@ -616,7 +613,7 @@ ClaimNumber = claim.ClaimNumber,
         updated.UpdatedAt = DateTime.UtcNow;
         _claimRepository.Update(updated);
         await _claimRepository.SaveChangesAsync();
-        var dto = _mapper.Map<ClaimDto>(updated);
+        var dto = LegacyDtoMapper.ToDto(updated);
         return dto;
      }
 
@@ -662,6 +659,6 @@ ClaimNumber = claim.ClaimNumber,
         _claimRepository.Update(claim);
     await _claimRepository.SaveChangesAsync();
 
-    return _mapper.Map<ClaimDto>(claim);
+    return LegacyDtoMapper.ToDto(claim);
     }
 }

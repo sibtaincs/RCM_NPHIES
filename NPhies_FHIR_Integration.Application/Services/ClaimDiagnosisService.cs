@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
 using NPhies_FHIR_Integration.Infrastructure.Repositories;
@@ -47,15 +47,13 @@ public interface IClaimDiagnosisService
 public class ClaimDiagnosisService : IClaimDiagnosisService
 {
     private readonly IClaimDiagnosisRepository _diagnosisRepository;
-  private readonly IMapper _mapper;
 
     /// <summary>
     /// Constructor with dependencies
     /// </summary>
-    public ClaimDiagnosisService(IClaimDiagnosisRepository diagnosisRepository, IMapper mapper)
+    public ClaimDiagnosisService(IClaimDiagnosisRepository diagnosisRepository)
     {
  _diagnosisRepository = diagnosisRepository ?? throw new ArgumentNullException(nameof(diagnosisRepository));
-  _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
 
     /// <summary>
@@ -65,13 +63,13 @@ public class ClaimDiagnosisService : IClaimDiagnosisService
     {
         try
         {
-    var diagnosis = _mapper.Map<ClaimDiagnosis>(dto);
+    var diagnosis = LegacyDtoMapper.ToEntity(dto);
    diagnosis.CreatedAt = DateTime.UtcNow;
 
             await _diagnosisRepository.AddAsync(diagnosis);
    await _diagnosisRepository.SaveChangesAsync();
 
-        return _mapper.Map<ClaimDiagnosisDto>(diagnosis);
+        return LegacyDtoMapper.ToDto(diagnosis);
    }
         catch (Exception ex)
  {
@@ -87,7 +85,7 @@ public class ClaimDiagnosisService : IClaimDiagnosisService
        try
         {
     var diagnosis = await _diagnosisRepository.GetByIdAsync(diagnosisId);
-      return diagnosis != null ? _mapper.Map<ClaimDiagnosisDto>(diagnosis) : null;
+      return diagnosis != null ? LegacyDtoMapper.ToDto(diagnosis) : null;
         }
         catch (Exception ex)
    {
@@ -103,7 +101,7 @@ public class ClaimDiagnosisService : IClaimDiagnosisService
         try
   {
  var diagnoses = await _diagnosisRepository.GetByClaimIdAsync(claimId);
-    return _mapper.Map<IEnumerable<ClaimDiagnosisDto>>(diagnoses);
+    return LegacyDtoMapper.ToDtos(diagnoses);
         }
         catch (Exception ex)
     {
@@ -119,7 +117,7 @@ public class ClaimDiagnosisService : IClaimDiagnosisService
         try
       {
      var diagnoses = await _diagnosisRepository.GetByCodeAsync(diagnosisCode);
-   return _mapper.Map<IEnumerable<ClaimDiagnosisDto>>(diagnoses);
+   return LegacyDtoMapper.ToDtos(diagnoses);
   }
         catch (Exception ex)
    {
@@ -138,13 +136,7 @@ public class ClaimDiagnosisService : IClaimDiagnosisService
    if (diagnosis == null)
          throw new KeyNotFoundException($"Claim diagnosis with ID {diagnosisId} not found");
 
-  _mapper.Map(dto, diagnosis);
-    diagnosis.UpdatedAt = DateTime.UtcNow;
-
-        _diagnosisRepository.Update(diagnosis);
-   await _diagnosisRepository.SaveChangesAsync();
-
-          return _mapper.Map<ClaimDiagnosisDto>(diagnosis);
+  throw ManualEditNotSupported();
  }
         catch (Exception ex)
   {
@@ -173,4 +165,11 @@ public class ClaimDiagnosisService : IClaimDiagnosisService
           throw new InvalidOperationException("Failed to delete claim diagnosis", ex);
    }
     }
+
+    /// <summary>
+    /// No mapping for this DTO ever existed, so this operation has always failed. It stays unsupported rather than
+    /// becoming a way around the RCM claim editor's edit lock, or a way to hand-enter the payer's adjudication.
+    /// </summary>
+    private static NotSupportedException ManualEditNotSupported() =>
+        new("Editing a claim diagnosis is not supported through this endpoint.");
 }

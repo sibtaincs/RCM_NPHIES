@@ -1,4 +1,3 @@
-using AutoMapper;
 using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Domain.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -59,7 +58,6 @@ public class EligibilityService : IEligibilityService
     private readonly IPatientRepository _patientRepository;
     private readonly ICoverageRepository _coverageRepository;
     private readonly IOrganizationRepository _organizationRepository;
-    private readonly IMapper _mapper;
     private readonly IFhirToEntityMapper _fhirMapper;
 
     /// <summary>
@@ -71,7 +69,6 @@ public class EligibilityService : IEligibilityService
         IPatientRepository patientRepository,
         ICoverageRepository coverageRepository,
     IOrganizationRepository organizationRepository,
-        IMapper mapper,
         IFhirToEntityMapper fhirMapper)
     {
   _requestRepository = requestRepository ?? throw new ArgumentNullException(nameof(requestRepository));
@@ -79,7 +76,6 @@ public class EligibilityService : IEligibilityService
         _patientRepository = patientRepository ?? throw new ArgumentNullException(nameof(patientRepository));
         _coverageRepository = coverageRepository ?? throw new ArgumentNullException(nameof(coverageRepository));
    _organizationRepository = organizationRepository ?? throw new ArgumentNullException(nameof(organizationRepository));
-      _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _fhirMapper = fhirMapper ?? throw new ArgumentNullException(nameof(fhirMapper));
     }
 
@@ -98,7 +94,7 @@ public class EligibilityService : IEligibilityService
            throw new ArgumentException("Coverage ID is required");
 
      // Map DTO to entity
-            var request = _mapper.Map<CoverageEligibilityRequest>(requestDto);
+            var request = LegacyDtoMapper.ToEntity(requestDto);
 
             // Set system-generated fields
       request.MessageUUID = Guid.NewGuid().ToString();
@@ -113,7 +109,7 @@ public class EligibilityService : IEligibilityService
             await _requestRepository.SaveChangesAsync();
 
  // Return DTO
-      return _mapper.Map<CoverageEligibilityRequestDto>(request);
+      return LegacyDtoMapper.ToDto(request);
    }
  catch (Exception ex)
       {
@@ -137,7 +133,7 @@ public class EligibilityService : IEligibilityService
         try
         {
     var request = await _requestRepository.GetWithDetailsAsync(requestId);
-            return request != null ? _mapper.Map<CoverageEligibilityRequestDto>(request) : null;
+            return request != null ? LegacyDtoMapper.ToDto(request) : null;
         }
         catch (Exception ex)
       {
@@ -153,7 +149,7 @@ public class EligibilityService : IEligibilityService
      try
   {
             var requests = await _requestRepository.GetPendingRequestsAsync();
-         return _mapper.Map<IEnumerable<CoverageEligibilityRequestDto>>(requests);
+         return LegacyDtoMapper.ToDtos(requests);
         }
       catch (Exception ex)
         {
@@ -190,7 +186,7 @@ public class EligibilityService : IEligibilityService
   await _responseRepository.AddAsync(response);
 await _responseRepository.SaveChangesAsync();
 
-    return _mapper.Map<CoverageEligibilityResponseDto>(response);
+    return LegacyDtoMapper.ToDto(response);
   }
         catch (Exception ex)
     {
@@ -206,7 +202,7 @@ await _responseRepository.SaveChangesAsync();
         try
         {
             var response = await _responseRepository.GetWithDetailsAsync(responseId);
-       return response != null ? _mapper.Map<CoverageEligibilityResponseDto>(response) : null;
+       return response != null ? LegacyDtoMapper.ToDto(response) : null;
         }
         catch (Exception ex)
         {

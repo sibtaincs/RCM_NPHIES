@@ -110,8 +110,7 @@ public class RcmClaimEditorTests
         Assert.AreEqual(RcmErrorKind.Conflict, ex.Kind);
 
         var legacy = await XAssert.ThrowsAsync<RcmWorkflowException>(() =>
-            _host.QueryAsync(db => new ClaimService(new NPhies_FHIR_Integration.Infrastructure.Repositories.ClaimRepository(db),
-                    new AutoMapper.MapperConfiguration(_ => { }).CreateMapper())
+            _host.QueryAsync(db => new ClaimService(new NPhies_FHIR_Integration.Infrastructure.Repositories.ClaimRepository(db))
                 .UpdateClaimAsync(claim.Id, new UpdateClaimDto { Status = "Paid", Total = 1m })));
         Assert.AreEqual(RcmErrorKind.Conflict, legacy.Kind);
         var stored = await _host.GetClaimAsync(claim.Id);

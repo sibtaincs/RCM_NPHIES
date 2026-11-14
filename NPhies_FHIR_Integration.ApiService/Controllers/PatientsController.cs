@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -16,16 +16,14 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers;
 public class PatientsController : ControllerBase
 {
     private readonly IPatientRepository _patientRepository;
-    private readonly IMapper _mapper;
     private readonly ILogger<PatientsController> _logger;
 
     /// <summary>
     /// Constructor
     /// </summary>
-    public PatientsController(IPatientRepository patientRepository, IMapper mapper, ILogger<PatientsController> logger)
+    public PatientsController(IPatientRepository patientRepository, ILogger<PatientsController> logger)
     {
         _patientRepository = patientRepository ?? throw new ArgumentNullException(nameof(patientRepository));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -58,7 +56,7 @@ public class PatientsController : ControllerBase
                 .Take(pageSize)
                 .ToList();
 
-            var patientDtos = _mapper.Map<List<PatientDto>>(patients);
+            var patientDtos = LegacyDtoMapper.ToDtos(patients);
             var paginatedResult = PaginatedResponse<PatientDto>.CreatePaginatedResponse(patientDtos, pageNumber, pageSize, totalCount);
 
             _logger.LogInformation($"Retrieved {patientDtos.Count} patients (Page {pageNumber})");
@@ -95,7 +93,7 @@ public class PatientsController : ControllerBase
                 return NotFound(ApiResponse<PatientDto>.ErrorResponse("Patient not found", 404));
             }
 
-            var patientDto = _mapper.Map<PatientDto>(patient);
+            var patientDto = LegacyDtoMapper.ToDto(patient);
             _logger.LogInformation($"Retrieved patient: {id}");
             return Ok(ApiResponse<PatientDto>.SuccessResponse(patientDto, "Patient retrieved successfully"));
         }
@@ -130,7 +128,7 @@ public class PatientsController : ControllerBase
                 return NotFound(ApiResponse<PatientDto>.ErrorResponse("Patient not found", 404));
             }
 
-            var patientDto = _mapper.Map<PatientDto>(patient);
+            var patientDto = LegacyDtoMapper.ToDto(patient);
             _logger.LogInformation($"Retrieved patient by MRN: {mrn}");
             return Ok(ApiResponse<PatientDto>.SuccessResponse(patientDto, "Patient retrieved successfully"));
         }
@@ -166,7 +164,7 @@ public class PatientsController : ControllerBase
         (string.IsNullOrEmpty(lastName) || p.LastName.Contains(lastName)) &&
   p.IsActive);
 
-            var patientDtos = _mapper.Map<List<PatientDto>>(patients);
+            var patientDtos = LegacyDtoMapper.ToDtos(patients);
 
        _logger.LogInformation($"Found {patientDtos.Count} patients matching: {firstName} {lastName}");
   return Ok(ApiResponse<List<PatientDto>>.SuccessResponse(patientDtos, "Patients found successfully"));
@@ -202,11 +200,11 @@ public class PatientsController : ControllerBase
                 return BadRequest(ApiResponse<PatientDto>.ErrorResponse("A patient with this MRN already exists", 400));
             }
 
-            var patient = _mapper.Map<Patient>(createPatientDto);
+            var patient = LegacyDtoMapper.ToEntity(createPatientDto);
             await _patientRepository.AddAsync(patient);
             await _patientRepository.SaveChangesAsync();
 
-            var patientDto = _mapper.Map<PatientDto>(patient);
+            var patientDto = LegacyDtoMapper.ToDto(patient);
             _logger.LogInformation($"Created new patient: {patient.Id}");
 
             return CreatedAtAction(nameof(GetById), new { id = patient.Id }, ApiResponse<PatientDto>.SuccessResponse(patientDto, "Patient created successfully", 201));
@@ -243,11 +241,11 @@ public class PatientsController : ControllerBase
                 return NotFound(ApiResponse<PatientDto>.ErrorResponse("Patient not found", 404));
             }
 
-            _mapper.Map(updatePatientDto, patient);
+            LegacyDtoUpdateMapper.Apply(updatePatientDto, patient);
             _patientRepository.Update(patient);
             await _patientRepository.SaveChangesAsync();
 
-            var patientDto = _mapper.Map<PatientDto>(patient);
+            var patientDto = LegacyDtoMapper.ToDto(patient);
             _logger.LogInformation($"Updated patient: {id}");
 
             return Ok(ApiResponse<PatientDto>.SuccessResponse(patientDto, "Patient updated successfully"));

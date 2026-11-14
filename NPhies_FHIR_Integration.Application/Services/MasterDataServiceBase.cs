@@ -1,6 +1,6 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Infrastructure.Data.Configurations;
 
 namespace NPhies_FHIR_Integration.Application.Services;
@@ -13,18 +13,20 @@ public abstract class MasterDataServiceBase<TEntity, TDto> : IMasterDataService<
     where TDto : class
 {
     protected readonly ApplicationDbContext _context;
-    protected readonly IMapper _mapper;
+    protected readonly IMasterDataMapper<TEntity, TDto> _mapper;
  protected readonly ILogger<MasterDataServiceBase<TEntity, TDto>> _logger;
 
     protected MasterDataServiceBase(
         ApplicationDbContext context,
-        IMapper mapper,
+        IMasterDataMapper<TEntity, TDto> mapper,
         ILogger<MasterDataServiceBase<TEntity, TDto>> logger)
     {
         _context = context;
         _mapper = mapper;
         _logger = logger;
     }
+
+    protected List<TDto> ToDtos(IEnumerable<TEntity> entities) => entities.Select(_mapper.ToDto).ToList();
 
     /// <summary>
     /// Get DbSet for the entity type
@@ -54,7 +56,7 @@ var total = await query.CountAsync();
       .Take(take <= 0 ? 10 : take)
      .ToListAsync();
 
-     var dtos = _mapper.Map<List<TDto>>(items);
+     var dtos = ToDtos(items);
      return (dtos, total);
       }
         catch (Exception ex)
@@ -74,7 +76,7 @@ var total = await query.CountAsync();
         try
         {
             var entity = await GetDbSet().FindAsync(id);
-        return entity == null ? null : _mapper.Map<TDto>(entity);
+        return entity == null ? null : _mapper.ToDto(entity);
         }
   catch (Exception ex)
      {
@@ -90,7 +92,7 @@ var total = await query.CountAsync();
     {
         try
         {
-        var entity = _mapper.Map<TEntity>(dto);
+        var entity = _mapper.ToEntity(dto);
 
             // Set audit fields if entity supports them
 if (entity is IHasAuditFields auditEntity)
@@ -102,7 +104,7 @@ GetDbSet().Add(entity);
             await _context.SaveChangesAsync();
 
       _logger.LogInformation("Record created successfully");
-     return _mapper.Map<TDto>(entity);
+     return _mapper.ToDto(entity);
         }
         catch (Exception ex)
         {
@@ -122,7 +124,7 @@ GetDbSet().Add(entity);
     if (entity == null)
     throw new KeyNotFoundException($"Record with ID {id} not found");
 
- _mapper.Map(dto, entity);
+ _mapper.Update(dto, entity);
 
             // Set audit fields if entity supports them
             if (entity is IHasAuditFields auditEntity)
@@ -133,7 +135,7 @@ GetDbSet().Add(entity);
   await _context.SaveChangesAsync();
 
      _logger.LogInformation("Record updated successfully: {Id}", id);
-      return _mapper.Map<TDto>(entity);
+      return _mapper.ToDto(entity);
  }
      catch (Exception ex)
   {
@@ -191,7 +193,7 @@ GetDbSet().Add(entity);
           var query = GetDbSet();
       var filtered = ApplySearchFilter(query, criteria);
             var items = await filtered.ToListAsync();
-          return _mapper.Map<List<TDto>>(items);
+          return ToDtos(items);
         }
         catch (Exception ex)
         {
@@ -207,7 +209,7 @@ GetDbSet().Add(entity);
     {
         try
      {
-      var entities = _mapper.Map<List<TEntity>>(dtos);
+      var entities = dtos.Select(_mapper.ToEntity).ToList();
 
           foreach (var entity in entities)
             {
@@ -221,7 +223,7 @@ GetDbSet().Add(entity);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("Bulk created {Count} records", entities.Count);
-return _mapper.Map<List<TDto>>(entities);
+return ToDtos(entities);
         }
         catch (Exception ex)
         {
@@ -249,7 +251,7 @@ try
             await _context.SaveChangesAsync();
 
  _logger.LogInformation("Record active status toggled: {Id}, IsActive: {IsActive}", id, isActive);
-     return _mapper.Map<TDto>(entity);
+     return _mapper.ToDto(entity);
    }
       catch (Exception ex)
         {

@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
 using NPhies_FHIR_Integration.Infrastructure.Repositories;
@@ -52,37 +52,20 @@ public interface IClaimResponseService
 public class ClaimResponseService : IClaimResponseService
 {
     private readonly IClaimResponseRepository _responseRepository;
- private readonly IMapper _mapper;
 
     /// <summary>
     /// Constructor with dependencies
     /// </summary>
-    public ClaimResponseService(IClaimResponseRepository responseRepository, IMapper mapper)
+    public ClaimResponseService(IClaimResponseRepository responseRepository)
     {
  _responseRepository = responseRepository ?? throw new ArgumentNullException(nameof(responseRepository));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
   }
 
     /// <summary>
  /// Create a new claim response
     /// </summary>
-  public async Task<ClaimResponseDto> CreateClaimResponseAsync(CreateClaimResponseDto dto)
-    {
-   try
-   {
-    var response = _mapper.Map<ClaimResponse>(dto);
-      response.CreatedAt = DateTime.UtcNow;
-
-  await _responseRepository.AddAsync(response);
-         await _responseRepository.SaveChangesAsync();
-
-            return _mapper.Map<ClaimResponseDto>(response);
-}
-        catch (Exception ex)
-      {
-       throw new InvalidOperationException("Failed to create claim response", ex);
-        }
-  }
+  public Task<ClaimResponseDto> CreateClaimResponseAsync(CreateClaimResponseDto dto) =>
+        Task.FromException<ClaimResponseDto>(new InvalidOperationException("Failed to create claim response", ManualEditNotSupported()));
 
     /// <summary>
     /// Get claim response by ID
@@ -92,7 +75,7 @@ public class ClaimResponseService : IClaimResponseService
         try
         {
       var response = await _responseRepository.GetWithDetailsAsync(responseId);
-   return response != null ? _mapper.Map<ClaimResponseDto>(response) : null;
+   return response != null ? LegacyDtoMapper.ToDto(response) : null;
         }
         catch (Exception ex)
         {
@@ -108,7 +91,7 @@ public class ClaimResponseService : IClaimResponseService
         try
   {
        var response = await _responseRepository.GetByClaimIdAsync(claimId);
-   return response != null ? _mapper.Map<ClaimResponseDto>(response) : null;
+   return response != null ? LegacyDtoMapper.ToDto(response) : null;
   }
         catch (Exception ex)
    {
@@ -132,7 +115,7 @@ public class ClaimResponseService : IClaimResponseService
         try
         {
       var responses = await _responseRepository.GetByStatusAsync(status);
-    return _mapper.Map<IEnumerable<ClaimResponseDto>>(responses);
+    return LegacyDtoMapper.ToDtos(responses);
     }
         catch (Exception ex)
         {
@@ -148,7 +131,7 @@ public class ClaimResponseService : IClaimResponseService
         try
         {
       var responses = await _responseRepository.GetByPreAuthRefAsync(preAuthRef);
-     return _mapper.Map<IEnumerable<ClaimResponseDto>>(responses);
+     return LegacyDtoMapper.ToDtos(responses);
         }
        catch (Exception ex)
         {
@@ -167,17 +150,18 @@ public async Task<ClaimResponseDto> UpdateClaimResponseAsync(string responseId, 
          if (response == null)
      throw new KeyNotFoundException($"Claim response with ID {responseId} not found");
 
-  _mapper.Map(dto, response);
-        response.UpdatedAt = DateTime.UtcNow;
-
-      _responseRepository.Update(response);
-            await _responseRepository.SaveChangesAsync();
-
-            return _mapper.Map<ClaimResponseDto>(response);
+  throw ManualEditNotSupported();
         }
   catch (Exception ex)
         {
        throw new InvalidOperationException("Failed to update claim response", ex);
   }
     }
+
+    /// <summary>
+    /// No mapping for this DTO ever existed, so this operation has always failed. It stays unsupported rather than
+    /// becoming a way around the RCM claim editor's edit lock, or a way to hand-enter the payer's adjudication.
+    /// </summary>
+    private static NotSupportedException ManualEditNotSupported() =>
+        new("Creating or editing a claim response is not supported through this endpoint.");
 }

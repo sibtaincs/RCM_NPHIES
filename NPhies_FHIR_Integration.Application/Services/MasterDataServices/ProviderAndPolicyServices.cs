@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using Microsoft.EntityFrameworkCore;
 using NPhies_FHIR_Integration.Domain.Entities;
 using Microsoft.Extensions.Logging;
@@ -9,21 +9,21 @@ namespace NPhies_FHIR_Integration.Application.Services.MasterDataServices;
 #region Payer Policy Master Service
 public class PayerPolicyMasterService : MasterDataServiceBase<PayerPolicyMaster, DTOs.PayerPolicyMasterDto>, IPayerPolicyMasterService
 {
-    public PayerPolicyMasterService(ApplicationDbContext context, IMapper mapper, ILogger<PayerPolicyMasterService> logger)
-   : base(context, mapper, logger) { }
+    public PayerPolicyMasterService(ApplicationDbContext context, ILogger<PayerPolicyMasterService> logger)
+   : base(context, MasterDataMapper.Instance, logger) { }
 
     protected override DbSet<PayerPolicyMaster> GetDbSet() => _context.PayerPolicyMasters;
 
 public async Task<List<DTOs.PayerPolicyMasterDto>> GetByPayerAsync(string payerMasterId)
     {
         var items = await GetDbSet().Where(p => p.PayerMasterId == payerMasterId).ToListAsync();
-    return _mapper.Map<List<DTOs.PayerPolicyMasterDto>>(items);
+    return ToDtos(items);
     }
 
     public async Task<DTOs.PayerPolicyMasterDto?> GetByPolicyCodeAsync(string policyCode)
     {
         var item = await GetDbSet().FirstOrDefaultAsync(p => p.PolicyCode == policyCode);
-        return item == null ? null : _mapper.Map<DTOs.PayerPolicyMasterDto>(item);
+        return item == null ? null : _mapper.ToDto(item);
     }
 
     public async Task<List<DTOs.PayerPolicyMasterDto>> GetActivePoliciesAsync()
@@ -34,7 +34,7 @@ public async Task<List<DTOs.PayerPolicyMasterDto>> GetByPayerAsync(string payerM
          p.EffectiveFromDate <= now && 
               (p.EffectiveToDate == null || p.EffectiveToDate >= now))
             .ToListAsync();
-        return _mapper.Map<List<DTOs.PayerPolicyMasterDto>>(items);
+        return ToDtos(items);
     }
 
   protected override IQueryable<PayerPolicyMaster> ApplySearchFilter(IQueryable<PayerPolicyMaster> query, string searchTerm)
@@ -47,27 +47,27 @@ public async Task<List<DTOs.PayerPolicyMasterDto>> GetByPayerAsync(string payerM
 #region Policy Benefit Coverage Service
 public class PolicyBenefitCoverageService : MasterDataServiceBase<PolicyBenefitCoverage, DTOs.PolicyBenefitCoverageDto>, IPolicyBenefitCoverageService
 {
-    public PolicyBenefitCoverageService(ApplicationDbContext context, IMapper mapper, ILogger<PolicyBenefitCoverageService> logger)
-        : base(context, mapper, logger) { }
+    public PolicyBenefitCoverageService(ApplicationDbContext context, ILogger<PolicyBenefitCoverageService> logger)
+        : base(context, MasterDataMapper.Instance, logger) { }
 
     protected override DbSet<PolicyBenefitCoverage> GetDbSet() => _context.PolicyBenefitCoverages;
 
     public async Task<List<DTOs.PolicyBenefitCoverageDto>> GetBypolicyAsync(string policyMasterId)
     {
         var items = await GetDbSet().Where(p => p.PolicyMasterId == policyMasterId).ToListAsync();
-        return _mapper.Map<List<DTOs.PolicyBenefitCoverageDto>>(items);
+        return ToDtos(items);
     }
 
     public async Task<List<DTOs.PolicyBenefitCoverageDto>> GetByCategoryAsync(string serviceCategory)
     {
      var items = await GetDbSet().Where(p => p.ServiceCategory == serviceCategory).ToListAsync();
-  return _mapper.Map<List<DTOs.PolicyBenefitCoverageDto>>(items);
+  return ToDtos(items);
     }
 
     public async Task<List<DTOs.PolicyBenefitCoverageDto>> GetExcludedBenefitsAsync()
     {
         var items = await GetDbSet().Where(p => p.IsExcluded && p.IsActive).ToListAsync();
-        return _mapper.Map<List<DTOs.PolicyBenefitCoverageDto>>(items);
+        return ToDtos(items);
     }
 
     protected override IQueryable<PolicyBenefitCoverage> ApplySearchFilter(IQueryable<PolicyBenefitCoverage> query, string searchTerm)
@@ -80,27 +80,27 @@ public class PolicyBenefitCoverageService : MasterDataServiceBase<PolicyBenefitC
 #region Clinic Master Service
 public class ClinicMasterService : MasterDataServiceBase<ClinicMaster, DTOs.ClinicMasterDto>, IClinicMasterService
 {
-    public ClinicMasterService(ApplicationDbContext context, IMapper mapper, ILogger<ClinicMasterService> logger)
-      : base(context, mapper, logger) { }
+    public ClinicMasterService(ApplicationDbContext context, ILogger<ClinicMasterService> logger)
+      : base(context, MasterDataMapper.Instance, logger) { }
 
     protected override DbSet<ClinicMaster> GetDbSet() => _context.ClinicMasters;
 
     public async Task<DTOs.ClinicMasterDto?> GetByClinicCodeAsync(string clinicCode)
  {
      var item = await GetDbSet().FirstOrDefaultAsync(c => c.ClinicCode == clinicCode);
-        return item == null ? null : _mapper.Map<DTOs.ClinicMasterDto>(item);
+        return item == null ? null : _mapper.ToDto(item);
  }
 
     public async Task<List<DTOs.ClinicMasterDto>> GetByOrganizationAsync(string organizationId)
     {
         var items = await GetDbSet().Where(c => c.OrganizationId == organizationId).ToListAsync();
-        return _mapper.Map<List<DTOs.ClinicMasterDto>>(items);
+        return ToDtos(items);
     }
 
     public async Task<List<DTOs.ClinicMasterDto>> GetByTypeAsync(string clinicType)
     {
    var items = await GetDbSet().Where(c => c.ClinicType == clinicType).ToListAsync();
-   return _mapper.Map<List<DTOs.ClinicMasterDto>>(items);
+   return ToDtos(items);
     }
 
     protected override IQueryable<ClinicMaster> ApplySearchFilter(IQueryable<ClinicMaster> query, string searchTerm)
@@ -113,33 +113,33 @@ public class ClinicMasterService : MasterDataServiceBase<ClinicMaster, DTOs.Clin
 #region Doctor Master Service
 public class DoctorMasterService : MasterDataServiceBase<DoctorMaster, DTOs.DoctorMasterDto>, IDoctorMasterService
 {
-    public DoctorMasterService(ApplicationDbContext context, IMapper mapper, ILogger<DoctorMasterService> logger)
-  : base(context, mapper, logger) { }
+    public DoctorMasterService(ApplicationDbContext context, ILogger<DoctorMasterService> logger)
+  : base(context, MasterDataMapper.Instance, logger) { }
 
     protected override DbSet<DoctorMaster> GetDbSet() => _context.DoctorMasters;
 
     public async Task<DTOs.DoctorMasterDto?> GetByDoctorCodeAsync(string doctorCode)
     {
         var item = await GetDbSet().FirstOrDefaultAsync(d => d.DoctorCode == doctorCode);
-        return item == null ? null : _mapper.Map<DTOs.DoctorMasterDto>(item);
+        return item == null ? null : _mapper.ToDto(item);
     }
 
   public async Task<List<DTOs.DoctorMasterDto>> GetBySpecializationAsync(string specialization)
     {
      var items = await GetDbSet().Where(d => d.Specialization == specialization).ToListAsync();
-    return _mapper.Map<List<DTOs.DoctorMasterDto>>(items);
+    return ToDtos(items);
     }
 
     public async Task<List<DTOs.DoctorMasterDto>> GetByClinicAsync(string clinicMasterId)
     {
         var items = await GetDbSet().Where(d => d.ClinicMasterId == clinicMasterId).ToListAsync();
-  return _mapper.Map<List<DTOs.DoctorMasterDto>>(items);
+  return ToDtos(items);
     }
 
     public async Task<List<DTOs.DoctorMasterDto>> GetAvailableForAppointmentsAsync()
     {
         var items = await GetDbSet().Where(d => d.IsAvailableForAppointments && d.IsActive).ToListAsync();
-        return _mapper.Map<List<DTOs.DoctorMasterDto>>(items);
+        return ToDtos(items);
     }
 
  protected override IQueryable<DoctorMaster> ApplySearchFilter(IQueryable<DoctorMaster> query, string searchTerm)
@@ -152,27 +152,27 @@ public class DoctorMasterService : MasterDataServiceBase<DoctorMaster, DTOs.Doct
 #region Doctor Qualification Service
 public class DoctorQualificationService : MasterDataServiceBase<DoctorQualification, DTOs.DoctorQualificationDto>, IDoctorQualificationService
 {
-    public DoctorQualificationService(ApplicationDbContext context, IMapper mapper, ILogger<DoctorQualificationService> logger)
-      : base(context, mapper, logger) { }
+    public DoctorQualificationService(ApplicationDbContext context, ILogger<DoctorQualificationService> logger)
+      : base(context, MasterDataMapper.Instance, logger) { }
 
     protected override DbSet<DoctorQualification> GetDbSet() => _context.DoctorQualifications;
 
     public async Task<List<DTOs.DoctorQualificationDto>> GetByDoctorAsync(string doctorMasterId)
     {
         var items = await GetDbSet().Where(d => d.DoctorMasterId == doctorMasterId).ToListAsync();
-        return _mapper.Map<List<DTOs.DoctorQualificationDto>>(items);
+        return ToDtos(items);
     }
 
     public async Task<List<DTOs.DoctorQualificationDto>> GetByTypeAsync(string qualificationType)
     {
      var items = await GetDbSet().Where(d => d.QualificationType == qualificationType).ToListAsync();
-        return _mapper.Map<List<DTOs.DoctorQualificationDto>>(items);
+        return ToDtos(items);
     }
 
     public async Task<List<DTOs.DoctorQualificationDto>> GetVerifiedQualificationsAsync()
     {
   var items = await GetDbSet().Where(d => d.VerificationStatus == "Verified" && d.IsActive).ToListAsync();
-        return _mapper.Map<List<DTOs.DoctorQualificationDto>>(items);
+        return ToDtos(items);
     }
 
     protected override IQueryable<DoctorQualification> ApplySearchFilter(IQueryable<DoctorQualification> query, string searchTerm)
@@ -185,8 +185,8 @@ public class DoctorQualificationService : MasterDataServiceBase<DoctorQualificat
 #region Claim Submission Rules Service
 public class ClaimSubmissionRulesService : MasterDataServiceBase<ClaimSubmissionRules, DTOs.ClaimSubmissionRulesDto>, IClaimSubmissionRulesService
 {
-    public ClaimSubmissionRulesService(ApplicationDbContext context, IMapper mapper, ILogger<ClaimSubmissionRulesService> logger)
-  : base(context, mapper, logger) { }
+    public ClaimSubmissionRulesService(ApplicationDbContext context, ILogger<ClaimSubmissionRulesService> logger)
+  : base(context, MasterDataMapper.Instance, logger) { }
 
     protected override DbSet<ClaimSubmissionRules> GetDbSet() => _context.ClaimSubmissionRules;
 
@@ -196,7 +196,7 @@ public class ClaimSubmissionRulesService : MasterDataServiceBase<ClaimSubmission
  .Where(r => r.PayerMasterId == payerMasterId && r.IsActive)
     .OrderBy(r => r.Priority)
             .ToListAsync();
-        return _mapper.Map<List<DTOs.ClaimSubmissionRulesDto>>(items);
+        return ToDtos(items);
     }
 
     public async Task<List<DTOs.ClaimSubmissionRulesDto>> GetByPolicyAsync(string policyMasterId)
@@ -205,7 +205,7 @@ public class ClaimSubmissionRulesService : MasterDataServiceBase<ClaimSubmission
         .Where(r => r.PolicyMasterId == policyMasterId && r.IsActive)
             .OrderBy(r => r.Priority)
         .ToListAsync();
-        return _mapper.Map<List<DTOs.ClaimSubmissionRulesDto>>(items);
+        return ToDtos(items);
     }
 
     public async Task<List<DTOs.ClaimSubmissionRulesDto>> GetApplicableRulesAsync(string payerMasterId, string? policyMasterId = null)
@@ -218,7 +218,7 @@ public class ClaimSubmissionRulesService : MasterDataServiceBase<ClaimSubmission
         }
 
         var items = await query.OrderBy(r => r.Priority).ToListAsync();
-        return _mapper.Map<List<DTOs.ClaimSubmissionRulesDto>>(items);
+        return ToDtos(items);
     }
 
     protected override IQueryable<ClaimSubmissionRules> ApplySearchFilter(IQueryable<ClaimSubmissionRules> query, string searchTerm)

@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -17,7 +17,6 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers;
 public class CommunicationsController : ControllerBase
 {
     private readonly IRepository<Communication> _communicationRepository;
-private readonly IMapper _mapper;
     private readonly ILogger<CommunicationsController> _logger;
 
     /// <summary>
@@ -25,11 +24,9 @@ private readonly IMapper _mapper;
     /// </summary>
     public CommunicationsController(
         IRepository<Communication> communicationRepository,
-        IMapper mapper,
         ILogger<CommunicationsController> logger)
  {
         _communicationRepository = communicationRepository ?? throw new ArgumentNullException(nameof(communicationRepository));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
      _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -59,7 +56,7 @@ return BadRequest(new { message = "Invalid pagination parameters" });
      .Take(pageSize)
           .ToList();
 
- var communicationDtos = _mapper.Map<List<CommunicationDto>>(communications);
+ var communicationDtos = LegacyDtoMapper.ToDtos(communications);
 
             _logger.LogInformation($"Retrieved {communicationDtos.Count} communications (Page {pageNumber})");
      return Ok(new
@@ -102,7 +99,7 @@ return BadRequest(new { message = "Invalid pagination parameters" });
      return NotFound(new { message = "Communication not found" });
             }
 
-     var communicationDto = _mapper.Map<CommunicationDto>(communication);
+     var communicationDto = LegacyDtoMapper.ToDto(communication);
             _logger.LogInformation($"Retrieved communication: {id}");
       return Ok(communicationDto);
       }
@@ -131,7 +128,7 @@ return BadRequest(new { message = "Invalid pagination parameters" });
     }
 
             var communications = await _communicationRepository.FindAsync(c => c.SubjectPatientId == patientId);
-            var communicationDtos = _mapper.Map<List<CommunicationDto>>(communications);
+            var communicationDtos = LegacyDtoMapper.ToDtos(communications);
 
       _logger.LogInformation($"Retrieved {communicationDtos.Count} communications for patient: {patientId}");
             return Ok(new { patientId = patientId, count = communicationDtos.Count, items = communicationDtos });
@@ -167,7 +164,7 @@ return BadRequest(new { message = "Invalid pagination parameters" });
     }
 
      var communications = await _communicationRepository.FindAsync(c => c.Status == status);
-      var communicationDtos = _mapper.Map<List<CommunicationDto>>(communications);
+      var communicationDtos = LegacyDtoMapper.ToDtos(communications);
 
     _logger.LogInformation($"Retrieved {communicationDtos.Count} communications with status: {status}");
  return Ok(new { status = status, count = communicationDtos.Count, items = communicationDtos });
@@ -197,7 +194,7 @@ return BadRequest(new { message = "Invalid pagination parameters" });
     }
 
 var communications = await _communicationRepository.FindAsync(c => c.SenderId == senderId);
-    var communicationDtos = _mapper.Map<List<CommunicationDto>>(communications);
+    var communicationDtos = LegacyDtoMapper.ToDtos(communications);
 
             _logger.LogInformation($"Retrieved {communicationDtos.Count} communications from sender: {senderId}");
       return Ok(new { senderId = senderId, count = communicationDtos.Count, items = communicationDtos });
@@ -227,7 +224,7 @@ var communications = await _communicationRepository.FindAsync(c => c.SenderId ==
      }
 
           var communications = await _communicationRepository.FindAsync(c => c.RecipientId == recipientId);
- var communicationDtos = _mapper.Map<List<CommunicationDto>>(communications);
+ var communicationDtos = LegacyDtoMapper.ToDtos(communications);
 
     _logger.LogInformation($"Retrieved {communicationDtos.Count} communications for recipient: {recipientId}");
          return Ok(new { recipientId = recipientId, count = communicationDtos.Count, items = communicationDtos });
@@ -262,11 +259,11 @@ var communications = await _communicationRepository.FindAsync(c => c.SenderId ==
  return BadRequest(new { message = "Communication ID is required" });
        }
 
-  var communication = _mapper.Map<Communication>(createDto);
+  var communication = LegacyDtoMapper.ToEntity(createDto);
       await _communicationRepository.AddAsync(communication);
      await _communicationRepository.SaveChangesAsync();
 
-         var communicationDto = _mapper.Map<CommunicationDto>(communication);
+         var communicationDto = LegacyDtoMapper.ToDto(communication);
     _logger.LogInformation($"Created new communication: {communication.Id}");
 
         return CreatedAtAction(nameof(GetById), new { id = communication.Id }, communicationDto);
@@ -304,11 +301,11 @@ var communications = await _communicationRepository.FindAsync(c => c.SenderId ==
       return NotFound(new { message = "Communication not found" });
           }
 
-            _mapper.Map(updateDto, communication);
+            LegacyDtoUpdateMapper.Apply(updateDto, communication);
        _communicationRepository.Update(communication);
             await _communicationRepository.SaveChangesAsync();
 
-     var communicationDto = _mapper.Map<CommunicationDto>(communication);
+     var communicationDto = LegacyDtoMapper.ToDto(communication);
       _logger.LogInformation($"Updated communication: {id}");
 
     return Ok(communicationDto);

@@ -1,7 +1,7 @@
+using NPhies_FHIR_Integration.Application.Mapping;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.Domain.DTOs;
 using NPhies_FHIR_Integration.Infrastructure.Repositories;
-using AutoMapper;
 using NPhies_FHIR_Integration.Common.Models;
 
 namespace NPhies_FHIR_Integration.ApiService.Controllers;
@@ -15,16 +15,14 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers;
 public class OrganizationsController : BaseController
 {
     private readonly IOrganizationRepository _organizationRepository;
-  private readonly IMapper _mapper;
     private readonly ILogger<OrganizationsController> _logger;
 
     /// <summary>
     /// Constructor with dependency injection
     /// </summary>
-    public OrganizationsController(IOrganizationRepository organizationRepository, IMapper mapper, ILogger<OrganizationsController> logger)
+    public OrganizationsController(IOrganizationRepository organizationRepository, ILogger<OrganizationsController> logger)
     {
   _organizationRepository = organizationRepository ?? throw new ArgumentNullException(nameof(organizationRepository));
-    _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 }
 
@@ -44,7 +42,7 @@ public class OrganizationsController : BaseController
     _logger.LogInformation("Retrieving all organizations");
 
             var organizations = await _organizationRepository.GetAllAsync();
-       var organizationDtos = _mapper.Map<IEnumerable<OrganizationDto>>(organizations);
+       var organizationDtos = LegacyDtoMapper.ToDtos(organizations);
 
       return Ok(organizationDtos, "Organizations retrieved successfully");
   }
@@ -81,7 +79,7 @@ return BadRequest("Organization ID is required");
       if (organization == null)
             return NotFound($"Organization with ID {id} not found");
 
-            var organizationDto = _mapper.Map<OrganizationDto>(organization);
+            var organizationDto = LegacyDtoMapper.ToDto(organization);
         return Ok(organizationDto, "Organization retrieved successfully");
         }
         catch (Exception ex)
@@ -117,7 +115,7 @@ try
     if (organization == null)
      return NotFound($"Organization with license {licenseNumber} not found");
 
-        var organizationDto = _mapper.Map<OrganizationDto>(organization);
+        var organizationDto = LegacyDtoMapper.ToDto(organization);
      return Ok(organizationDto, "Organization retrieved successfully");
         }
    catch (Exception ex)
@@ -143,7 +141,7 @@ try
     _logger.LogInformation("Retrieving all active providers");
 
           var providers = await _organizationRepository.GetProvidersAsync();
-            var providerDtos = _mapper.Map<IEnumerable<OrganizationDto>>(providers);
+            var providerDtos = LegacyDtoMapper.ToDtos(providers);
 
     return Ok(providerDtos, "Providers retrieved successfully");
         }
@@ -170,7 +168,7 @@ try
      _logger.LogInformation("Retrieving all active insurers");
 
             var insurers = await _organizationRepository.GetInsurersAsync();
-    var insurerDtos = _mapper.Map<IEnumerable<OrganizationDto>>(insurers);
+    var insurerDtos = LegacyDtoMapper.ToDtos(insurers);
 
   return Ok(insurerDtos, "Insurers retrieved successfully");
         }
@@ -211,11 +209,11 @@ return BadRequest("License number is required");
 
     _logger.LogInformation("Creating new organization {OrganizationName}", organizationDto.OrganizationName);
 
-            var organization = _mapper.Map<Domain.Entities.Organization>(organizationDto);
+            var organization = LegacyDtoMapper.ToEntity(organizationDto);
         var createdOrganization = await _organizationRepository.AddAsync(organization);
  await _organizationRepository.SaveChangesAsync();
 
-      var createdOrganizationDto = _mapper.Map<OrganizationDto>(createdOrganization);
+      var createdOrganizationDto = LegacyDtoMapper.ToDto(createdOrganization);
  return Created($"/api/v1/organizations/{createdOrganization.Id}", createdOrganizationDto);
     }
         catch (Exception ex)
@@ -269,7 +267,7 @@ return BadRequest("License number is required");
   var updatedOrganization = _organizationRepository.Update(existingOrganization);
             await _organizationRepository.SaveChangesAsync();
 
-        var updatedOrganizationDto = _mapper.Map<OrganizationDto>(updatedOrganization);
+        var updatedOrganizationDto = LegacyDtoMapper.ToDto(updatedOrganization);
        return Ok(updatedOrganizationDto, "Organization updated successfully");
         }
         catch (Exception ex)

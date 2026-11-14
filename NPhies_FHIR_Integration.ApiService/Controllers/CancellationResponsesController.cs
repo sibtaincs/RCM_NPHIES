@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -18,7 +18,6 @@ public class CancellationResponsesController : ControllerBase
 {
     private readonly IRepository<CancellationResponse> _cancellationResponseRepository;
     private readonly IRepository<CancellationRequest> _cancellationRequestRepository;
-    private readonly IMapper _mapper;
     private readonly ILogger<CancellationResponsesController> _logger;
 
     /// <summary>
@@ -27,12 +26,10 @@ public class CancellationResponsesController : ControllerBase
     public CancellationResponsesController(
   IRepository<CancellationResponse> cancellationResponseRepository,
    IRepository<CancellationRequest> cancellationRequestRepository,
-        IMapper mapper,
     ILogger<CancellationResponsesController> logger)
     {
       _cancellationResponseRepository = cancellationResponseRepository ?? throw new ArgumentNullException(nameof(cancellationResponseRepository));
   _cancellationRequestRepository = cancellationRequestRepository ?? throw new ArgumentNullException(nameof(cancellationRequestRepository));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -62,7 +59,7 @@ public class CancellationResponsesController : ControllerBase
         .Take(pageSize)
  .ToList();
 
- var responseDtos = _mapper.Map<List<TaskResponseDto>>(responses);
+ var responseDtos = LegacyDtoMapper.ToDtos(responses);
 
   _logger.LogInformation($"Retrieved {responseDtos.Count} cancellation responses (Page {pageNumber})");
         return Ok(new
@@ -105,7 +102,7 @@ _logger.LogError(ex, "Error retrieving cancellation responses");
            return NotFound(new { message = "Cancellation response not found" });
   }
 
-  var responseDto = _mapper.Map<TaskResponseDto>(response);
+  var responseDto = LegacyDtoMapper.ToDto(response);
  _logger.LogInformation($"Retrieved cancellation response: {id}");
   return Ok(responseDto);
         }
@@ -140,7 +137,7 @@ _logger.LogError(ex, "Error retrieving cancellation responses");
             }
 
   var responses = await _cancellationResponseRepository.FindAsync(t => t.Status == status && t.Code == "cancel");
-      var responseDtos = _mapper.Map<List<TaskResponseDto>>(responses);
+      var responseDtos = LegacyDtoMapper.ToDtos(responses);
 
      _logger.LogInformation($"Retrieved {responseDtos.Count} cancellation responses with status: {status}");
       return Ok(new { status = status, count = responseDtos.Count, items = responseDtos });
@@ -170,7 +167,7 @@ try
        }
 
             var responses = await _cancellationResponseRepository.FindAsync(t => t.ResponseCode == responseCode && t.Code == "cancel");
-    var responseDtos = _mapper.Map<List<TaskResponseDto>>(responses);
+    var responseDtos = LegacyDtoMapper.ToDtos(responses);
 
      _logger.LogInformation($"Retrieved {responseDtos.Count} cancellation responses with response code: {responseCode}");
         return Ok(new { responseCode = responseCode, count = responseDtos.Count, items = responseDtos });
@@ -193,7 +190,7 @@ try
      try
    {
   var responses = await _cancellationResponseRepository.FindAsync(t => t.ResponseCode == "ok" && t.ResponseStatusCode == 200 && t.Code == "cancel");
-        var responseDtos = _mapper.Map<List<TaskResponseDto>>(responses);
+        var responseDtos = LegacyDtoMapper.ToDtos(responses);
 
        _logger.LogInformation($"Retrieved {responseDtos.Count} successful cancellation responses");
     return Ok(new { count = responseDtos.Count, items = responseDtos });
@@ -216,7 +213,7 @@ try
         try
  {
       var responses = await _cancellationResponseRepository.FindAsync(t => (t.ResponseCode == "error" || t.ResponseStatusCode >= 400) && t.Code == "cancel");
-  var responseDtos = _mapper.Map<List<TaskResponseDto>>(responses);
+  var responseDtos = LegacyDtoMapper.ToDtos(responses);
 
             _logger.LogInformation($"Retrieved {responseDtos.Count} failed cancellation responses");
 return Ok(new { count = responseDtos.Count, items = responseDtos });
@@ -265,11 +262,11 @@ return Ok(new { count = responseDtos.Count, items = responseDtos });
   }
    }
 
- var response = _mapper.Map<CancellationResponse>(createDto);
+ var response = LegacyDtoMapper.ToEntity(createDto);
   await _cancellationResponseRepository.AddAsync(response);
   await _cancellationResponseRepository.SaveChangesAsync();
 
-  var responseDto = _mapper.Map<TaskResponseDto>(response);
+  var responseDto = LegacyDtoMapper.ToDto(response);
     _logger.LogInformation($"Created new cancellation response: {response.Id}");
 
     return CreatedAtAction(nameof(GetById), new { id = response.Id }, responseDto);
@@ -307,11 +304,11 @@ return Ok(new { count = responseDtos.Count, items = responseDtos });
  return NotFound(new { message = "Cancellation response not found" });
         }
 
-_mapper.Map(updateDto, response);
+LegacyDtoUpdateMapper.Apply(updateDto, response);
         _cancellationResponseRepository.Update(response);
       await _cancellationResponseRepository.SaveChangesAsync();
 
-    var responseDto = _mapper.Map<TaskResponseDto>(response);
+    var responseDto = LegacyDtoMapper.ToDto(response);
      _logger.LogInformation($"Updated cancellation response: {id}");
 
    return Ok(responseDto);

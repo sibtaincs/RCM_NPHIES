@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -17,7 +17,6 @@ public class CoverageController : ControllerBase
 {
     private readonly ICoverageRepository _coverageRepository;
     private readonly IPatientRepository _patientRepository;
-    private readonly IMapper _mapper;
     private readonly ILogger<CoverageController> _logger;
 
     /// <summary>
@@ -26,12 +25,10 @@ public class CoverageController : ControllerBase
     public CoverageController(
         ICoverageRepository coverageRepository,
         IPatientRepository patientRepository,
- IMapper mapper,
         ILogger<CoverageController> logger)
     {
         _coverageRepository = coverageRepository ?? throw new ArgumentNullException(nameof(coverageRepository));
         _patientRepository = patientRepository ?? throw new ArgumentNullException(nameof(patientRepository));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -63,7 +60,7 @@ public class CoverageController : ControllerBase
                .Take(pageSize)
                .ToList();
 
-            var coverageDtos = _mapper.Map<List<CoverageDto>>(paginatedCoverages);
+            var coverageDtos = LegacyDtoMapper.ToDtos(paginatedCoverages);
             var paginatedResult = PaginatedResponse<CoverageDto>.CreatePaginatedResponse(coverageDtos, pageNumber, pageSize, totalCount);
 
             _logger.LogInformation($"Retrieved {coverageDtos.Count} coverages (Page {pageNumber})");
@@ -100,7 +97,7 @@ public class CoverageController : ControllerBase
                 return NotFound(ApiResponse<CoverageDto>.ErrorResponse("Coverage not found", 404));
             }
 
-            var coverageDto = _mapper.Map<CoverageDto>(coverage);
+            var coverageDto = LegacyDtoMapper.ToDto(coverage);
             _logger.LogInformation($"Retrieved coverage: {id}");
             return Ok(ApiResponse<CoverageDto>.SuccessResponse(coverageDto, "Coverage retrieved successfully"));
         }
@@ -134,7 +131,7 @@ public class CoverageController : ControllerBase
                 return NotFound(ApiResponse<CoverageDto>.ErrorResponse("Coverage not found", 404));
             }
 
-            var coverageDto = _mapper.Map<CoverageDto>(coverage);
+            var coverageDto = LegacyDtoMapper.ToDto(coverage);
             _logger.LogInformation($"Retrieved coverage by policy: {policyNumber}");
             return Ok(ApiResponse<CoverageDto>.SuccessResponse(coverageDto, "Coverage retrieved successfully"));
         }
@@ -168,7 +165,7 @@ public class CoverageController : ControllerBase
             }
 
             var coverages = await _coverageRepository.GetActiveByPatientIdAsync(patientId);
-            var coverageDtos = _mapper.Map<List<CoverageDto>>(coverages);
+            var coverageDtos = LegacyDtoMapper.ToDtos(coverages);
 
             _logger.LogInformation($"Retrieved {coverageDtos.Count} coverages for patient: {patientId}");
             return Ok(ApiResponse<List<CoverageDto>>.SuccessResponse(coverageDtos, "Coverages retrieved successfully"));
@@ -246,11 +243,11 @@ public class CoverageController : ControllerBase
                 return BadRequest(ApiResponse<CoverageDto>.ErrorResponse("Patient not found", 400));
             }
 
-            var coverage = _mapper.Map<Coverage>(createCoverageDto);
+            var coverage = LegacyDtoMapper.ToEntity(createCoverageDto);
             await _coverageRepository.AddAsync(coverage);
             await _coverageRepository.SaveChangesAsync();
 
-            var coverageDto = _mapper.Map<CoverageDto>(coverage);
+            var coverageDto = LegacyDtoMapper.ToDto(coverage);
             _logger.LogInformation($"Created new coverage: {coverage.Id}");
 
             return CreatedAtAction(nameof(GetById), new { id = coverage.Id },
@@ -286,11 +283,11 @@ public class CoverageController : ControllerBase
                 return NotFound(ApiResponse<CoverageDto>.ErrorResponse("Coverage not found", 404));
             }
 
-            _mapper.Map(updateCoverageDto, coverage);
+            LegacyDtoUpdateMapper.Apply(updateCoverageDto, coverage);
             _coverageRepository.Update(coverage);
             await _coverageRepository.SaveChangesAsync();
 
-            var coverageDto = _mapper.Map<CoverageDto>(coverage);
+            var coverageDto = LegacyDtoMapper.ToDto(coverage);
             _logger.LogInformation($"Updated coverage: {id}");
 
             return Ok(ApiResponse<CoverageDto>.SuccessResponse(coverageDto, "Coverage updated successfully"));

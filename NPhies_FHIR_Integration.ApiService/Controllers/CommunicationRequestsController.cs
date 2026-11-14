@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using Microsoft.AspNetCore.Mvc;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -17,7 +17,6 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers;
 public class CommunicationRequestsController : ControllerBase
 {
     private readonly IRepository<CommunicationRequest> _communicationRepository;
-    private readonly IMapper _mapper;
     private readonly ILogger<CommunicationRequestsController> _logger;
 
     /// <summary>
@@ -25,11 +24,9 @@ public class CommunicationRequestsController : ControllerBase
     /// </summary>
     public CommunicationRequestsController(
    IRepository<CommunicationRequest> communicationRepository,
-    IMapper mapper,
     ILogger<CommunicationRequestsController> logger)
     {
         _communicationRepository = communicationRepository ?? throw new ArgumentNullException(nameof(communicationRepository));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -59,7 +56,7 @@ public class CommunicationRequestsController : ControllerBase
      .Take(pageSize)
     .ToList();
 
-      var requestDtos = _mapper.Map<List<CommunicationRequestDto>>(requests);
+      var requestDtos = LegacyDtoMapper.ToDtos(requests);
 
  _logger.LogInformation($"Retrieved {requestDtos.Count} communication requests (Page {pageNumber})");
             return Ok(new
@@ -102,7 +99,7 @@ public class CommunicationRequestsController : ControllerBase
     return NotFound(new { message = "Communication request not found" });
          }
 
-          var requestDto = _mapper.Map<CommunicationRequestDto>(request);
+          var requestDto = LegacyDtoMapper.ToDto(request);
   _logger.LogInformation($"Retrieved communication request: {id}");
   return Ok(requestDto);
       }
@@ -131,7 +128,7 @@ public class CommunicationRequestsController : ControllerBase
          }
 
             var requests = await _communicationRepository.FindAsync(r => r.SubjectPatientId == patientId);
-        var requestDtos = _mapper.Map<List<CommunicationRequestDto>>(requests);
+        var requestDtos = LegacyDtoMapper.ToDtos(requests);
 
 _logger.LogInformation($"Retrieved {requestDtos.Count} communication requests for patient: {patientId}");
             return Ok(new { patientId = patientId, count = requestDtos.Count, items = requestDtos });
@@ -167,7 +164,7 @@ _logger.LogInformation($"Retrieved {requestDtos.Count} communication requests fo
          }
 
     var requests = await _communicationRepository.FindAsync(r => r.Status == status);
-   var requestDtos = _mapper.Map<List<CommunicationRequestDto>>(requests);
+   var requestDtos = LegacyDtoMapper.ToDtos(requests);
 
       _logger.LogInformation($"Retrieved {requestDtos.Count} communication requests with status: {status}");
    return Ok(new { status = status, count = requestDtos.Count, items = requestDtos });
@@ -197,7 +194,7 @@ _logger.LogInformation($"Retrieved {requestDtos.Count} communication requests fo
     }
 
             var requests = await _communicationRepository.FindAsync(r => r.RecipientId == recipientId);
-        var requestDtos = _mapper.Map<List<CommunicationRequestDto>>(requests);
+        var requestDtos = LegacyDtoMapper.ToDtos(requests);
 
             _logger.LogInformation($"Retrieved {requestDtos.Count} communication requests for recipient: {recipientId}");
           return Ok(new { recipientId = recipientId, count = requestDtos.Count, items = requestDtos });
@@ -232,11 +229,11 @@ _logger.LogInformation($"Retrieved {requestDtos.Count} communication requests fo
                 return BadRequest(new { message = "Communication Request ID is required" });
  }
 
-          var request = _mapper.Map<CommunicationRequest>(createDto);
+          var request = LegacyDtoMapper.ToEntity(createDto);
             await _communicationRepository.AddAsync(request);
         await _communicationRepository.SaveChangesAsync();
 
-            var requestDto = _mapper.Map<CommunicationRequestDto>(request);
+            var requestDto = LegacyDtoMapper.ToDto(request);
             _logger.LogInformation($"Created new communication request: {request.Id}");
 
  return CreatedAtAction(nameof(GetById), new { id = request.Id }, requestDto);
@@ -274,11 +271,11 @@ _logger.LogInformation($"Retrieved {requestDtos.Count} communication requests fo
     return NotFound(new { message = "Communication request not found" });
     }
 
-   _mapper.Map(updateDto, request);
+   LegacyDtoUpdateMapper.Apply(updateDto, request);
   _communicationRepository.Update(request);
             await _communicationRepository.SaveChangesAsync();
 
-       var requestDto = _mapper.Map<CommunicationRequestDto>(request);
+       var requestDto = LegacyDtoMapper.ToDto(request);
  _logger.LogInformation($"Updated communication request: {id}");
 
             return Ok(requestDto);

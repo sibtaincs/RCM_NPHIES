@@ -1,4 +1,4 @@
-using AutoMapper;
+using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Application.DTOs;
 using NPhies_FHIR_Integration.Domain.Entities;
 using NPhies_FHIR_Integration.Infrastructure.Repositories;
@@ -42,15 +42,13 @@ public interface IClaimItemService
 public class ClaimItemService : IClaimItemService
 {
     private readonly IClaimItemRepository _itemRepository;
-    private readonly IMapper _mapper;
 
     /// <summary>
     /// Constructor with dependencies
     /// </summary>
-    public ClaimItemService(IClaimItemRepository itemRepository, IMapper mapper)
+    public ClaimItemService(IClaimItemRepository itemRepository)
     {
         _itemRepository = itemRepository ?? throw new ArgumentNullException(nameof(itemRepository));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
 
     /// <summary>
@@ -60,13 +58,13 @@ public class ClaimItemService : IClaimItemService
     {
         try
         {
-            var item = _mapper.Map<ClaimItem>(dto);
+            var item = LegacyDtoMapper.ToEntity(dto);
             item.CreatedAt = DateTime.UtcNow;
 
             await _itemRepository.AddAsync(item);
             await _itemRepository.SaveChangesAsync();
 
-            return _mapper.Map<ClaimItemDto>(item);
+            return LegacyDtoMapper.ToDto(item);
         }
         catch (Exception ex)
         {
@@ -82,7 +80,7 @@ public class ClaimItemService : IClaimItemService
         try
         {
             var item = await _itemRepository.GetByIdAsync(itemId);
-            return item != null ? _mapper.Map<ClaimItemDto>(item) : null;
+            return item != null ? LegacyDtoMapper.ToDto(item) : null;
         }
         catch (Exception ex)
         {
@@ -98,7 +96,7 @@ public class ClaimItemService : IClaimItemService
         try
         {
             var items = await _itemRepository.GetByClaimIdAsync(claimId);
-            return _mapper.Map<IEnumerable<ClaimItemDto>>(items);
+            return LegacyDtoMapper.ToDtos(items);
         }
         catch (Exception ex)
         {
@@ -117,13 +115,7 @@ public class ClaimItemService : IClaimItemService
             if (item == null)
                 throw new KeyNotFoundException($"Claim item with ID {itemId} not found");
 
-            _mapper.Map(dto, item);
-            item.UpdatedAt = DateTime.UtcNow;
-
-            _itemRepository.Update(item);
-            await _itemRepository.SaveChangesAsync();
-
-            return _mapper.Map<ClaimItemDto>(item);
+            throw ManualEditNotSupported();
         }
         catch (Exception ex)
         {
@@ -152,4 +144,11 @@ public class ClaimItemService : IClaimItemService
             throw new InvalidOperationException("Failed to delete claim item", ex);
         }
     }
+
+    /// <summary>
+    /// No mapping for this DTO ever existed, so this operation has always failed. It stays unsupported rather than
+    /// becoming a way around the RCM claim editor's edit lock, or a way to hand-enter the payer's adjudication.
+    /// </summary>
+    private static NotSupportedException ManualEditNotSupported() =>
+        new("Editing a claim item is not supported through this endpoint.");
 }
