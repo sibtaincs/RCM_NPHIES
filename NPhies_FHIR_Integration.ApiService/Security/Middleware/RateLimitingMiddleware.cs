@@ -46,10 +46,18 @@ public class RateLimitingMiddleware
         var status = await rateLimitingService.GetRateLimitStatusAsync(ipAddress, endpoint);
   context.Response.Headers.Add("X-RateLimit-Limit", status.MaxRequests.ToString());
     context.Response.Headers.Add("X-RateLimit-Remaining", status.RemainingRequests.ToString());
- context.Response.Headers.Add("X-RateLimit-Reset", new DateTimeOffset(status.ResetTime).ToUnixTimeSeconds().ToString());
+ context.Response.Headers.Add("X-RateLimit-Reset", ToUnixSeconds(status.ResetTime).ToString());
 
         await _next(context);
     }
+
+    /// <summary>
+    /// Unix seconds for a UTC timestamp. Times read from the database come back with Kind = Unspecified; they are
+    /// stored as UTC, so they are treated as UTC. <c>new DateTimeOffset(dateTime)</c> would treat them as local time,
+    /// shifting the header by the server's offset and throwing for DateTime.MinValue east of UTC.
+    /// </summary>
+    public static long ToUnixSeconds(DateTime utc) =>
+        new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeSeconds();
 }
 
 /// <summary>

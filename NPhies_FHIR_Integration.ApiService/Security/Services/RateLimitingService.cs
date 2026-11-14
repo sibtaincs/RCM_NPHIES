@@ -144,7 +144,7 @@ if (recentLogs == null)
    catch (Exception ex)
   {
          _logger.LogError(ex, "Error getting rate limit status");
- return new RateLimitStatus { IsRateLimited = false, MaxRequests = 100 };
+         return RateLimitStatus.Fallback();
        }
    }
 }
@@ -158,5 +158,15 @@ public class RateLimitStatus
     public int RequestCount { get; set; }
     public int MaxRequests { get; set; } = 100;
     public int RemainingRequests { get; set; }
+    /// <summary>When the current window ends, in UTC.</summary>
     public DateTime ResetTime { get; set; }
+
+    /// <summary>Status used when the lookup fails: not limited, full allowance, window ending in one minute.</summary>
+    public static RateLimitStatus Fallback() => new()
+    {
+        IsRateLimited = false,
+        MaxRequests = 100,
+        RemainingRequests = 100,
+        ResetTime = DateTime.UtcNow.AddMinutes(1),
+    };
 }
