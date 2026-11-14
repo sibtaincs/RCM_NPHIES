@@ -65,8 +65,10 @@ else
     builder.Services.AddDistributedMemoryCache(); // For development
 }
 
-// Add AutoMapper
+// Add AutoMapper. 15.x is commercially licensed (Lucky Penny Software); the key comes from user-secrets or
+// the AutoMapper__LicenseKey environment variable, never appsettings. Without one AutoMapper only logs a warning.
 builder.Services.AddAutoMapper(
+    cfg => cfg.LicenseKey = builder.Configuration["AutoMapper:LicenseKey"],
     typeof(ApplicationMappingProfile),
     typeof(EligibilityMappingProfile),
     typeof(MasterDataMappingProfile));

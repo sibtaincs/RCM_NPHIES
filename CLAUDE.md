@@ -43,6 +43,7 @@ dotnet ef migrations script --idempotent --project NPhies_FHIR_Integration.Infra
 **Local configuration:**
 - Secrets come from user-secrets or environment variables, never `appsettings*.json`: `ConnectionStrings:DefaultConnection`, `JwtSettings:Secret` (32+ characters) and `Seed:AdminPassword`.
 - Outside Development, startup fails if the first two are missing (`ApiService/Security/SecretConfiguration.cs`).
+- `AutoMapper:LicenseKey` (optional, same rule: user-secrets or `AutoMapper__LicenseKey`). AutoMapper 15+ is commercially licensed by Lucky Penny Software; without a key it logs a license warning and still maps.
 - `Nphies:Sandbox:Enabled=true` routes all NPHIES traffic to an in-process simulator (`Application/Nphies/Sandbox/NphiesSandboxTransport.cs`), so the app runs without a certificate.
 
 **Development startup:**
