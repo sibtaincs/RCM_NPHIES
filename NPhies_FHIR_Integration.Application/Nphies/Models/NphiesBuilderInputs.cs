@@ -356,6 +356,8 @@ public sealed class ClaimRequestInput : NphiesMessageInput
     public string? AuthorizationOfflineDate { get; set; }
     public NphiesIdentifier? Episode { get; set; }
     public bool? Transfer { get; set; }
+    /// <summary>extension-newborn: the patient is a newborn using the subscriber's (mother's) coverage.</summary>
+    public bool? Newborn { get; set; }
     public BatchInfoInput? Batch { get; set; }
 }
 
@@ -380,6 +382,10 @@ public sealed class EligibilityRequestInput : NphiesMessageInput
     /// <summary>Coverage is optional for discovery requests.</summary>
     public CoverageInput? Coverage { get; set; }
     public bool? CoverageFocal { get; set; }
+    /// <summary>extension-newborn: the patient is a newborn using the subscriber's (mother's) coverage.</summary>
+    public bool? Newborn { get; set; }
+    /// <summary>extension-transfer: eligibility check by the receiving provider of a referral (IG 7.3).</summary>
+    public bool? Transfer { get; set; }
     public LocationInput? Facility { get; set; }
 }
 

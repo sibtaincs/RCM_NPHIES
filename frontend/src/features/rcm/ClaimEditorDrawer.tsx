@@ -352,8 +352,27 @@ export function ClaimEditorDrawer({
       <Field label="Patient" required>
         <PatientSelect disabled={readOnly || (!isNew && !!loaded.data?.nphiesStatus && loaded.data.nphiesStatus !== 'Draft')} value={d.patientId || undefined} onChange={(v) => patch({ patientId: v ?? '', coverageId: '', encounterId: null })} />
       </Field>
+      <Field label="Newborn">
+        <Checkbox
+          disabled={readOnly}
+          checked={!!d.isNewborn}
+          onChange={(e) => patch({ isNewborn: e.target.checked, coverageHolderPatientId: e.target.checked ? null : d.patientId, coverageId: '' })}
+        >
+          Newborn on the mother's coverage
+        </Checkbox>
+      </Field>
+      {d.isNewborn && (
+        <Field label="Mother (coverage holder)" required>
+          <PatientSelect disabled={readOnly} value={d.coverageHolderPatientId || undefined} onChange={(v) => patch({ coverageHolderPatientId: v ?? null, coverageId: '' })} />
+        </Field>
+      )}
       <Field label="Coverage / policy" required>
-        <CoverageSelect patientId={d.patientId || undefined} disabled={readOnly} value={d.coverageId || undefined} onChange={(v) => patch({ coverageId: v ?? '' })} />
+        <CoverageSelect
+          patientId={(d.isNewborn ? d.coverageHolderPatientId : d.patientId) || undefined}
+          disabled={readOnly}
+          value={d.coverageId || undefined}
+          onChange={(v) => patch({ coverageId: v ?? '' })}
+        />
       </Field>
       <Field label="Insurer" required>
         <InsurerSelect disabled={readOnly} value={d.insurerId || undefined} onChange={(v) => patch({ insurerId: v ?? '' })} />

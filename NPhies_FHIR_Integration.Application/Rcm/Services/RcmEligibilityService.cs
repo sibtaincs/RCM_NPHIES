@@ -50,7 +50,9 @@ public sealed class RcmEligibilityService : IRcmEligibilityService
         if (!string.IsNullOrWhiteSpace(request.CoverageId))
         {
             coverage = await _db.Coverages.FirstOrDefaultAsync(c => c.Id == request.CoverageId, ct) ?? throw RcmWorkflowException.NotFound("Coverage", request.CoverageId!);
-            if (coverage.PatientId != patient.Id) throw RcmWorkflowException.Invalid("Coverage does not belong to the patient.");
+            // A newborn is checked against the mother's coverage (IG 6.5); otherwise the coverage must be the patient's.
+            if (coverage.PatientId != patient.Id && !request.IsNewborn)
+                throw RcmWorkflowException.Invalid("Coverage does not belong to the patient. For a newborn on the mother's coverage, set isNewborn.");
         }
         else if (!purposes.Contains("discovery"))
         {
@@ -79,6 +81,8 @@ public sealed class RcmEligibilityService : IRcmEligibilityService
             ProviderId = provider.Id,
             InsurerId = insurer.Id,
             Purposes = string.Join(",", purposes),
+            IsNewborn = request.IsNewborn,
+            IsTransfer = request.IsTransfer,
             ServicedDate = serviced,
             RequestIdentifierSystem = _mapper.IdentifierSystem("coverageeligibilityrequest"),
             RequestIdentifierValue = $"req_elig_{stamp}",
@@ -96,6 +100,8 @@ public sealed class RcmEligibilityService : IRcmEligibilityService
             Insurer = _mapper.MapOrganization(insurer, NphiesOrganizationKind.Insurer),
             Coverage = coverage is null ? null : _mapper.MapCoverage(coverage, patient),
             Facility = facility,
+            Newborn = request.IsNewborn ? true : null,
+            Transfer = request.IsTransfer ? true : null,
         };
         if (coverage != null)
             (input.Subscriber, input.Policyholder) = await _mapper.LoadCoveragePartiesAsync(coverage, patient, input.Coverage!, ct);

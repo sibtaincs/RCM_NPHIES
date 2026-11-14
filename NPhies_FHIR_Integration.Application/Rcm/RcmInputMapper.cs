@@ -147,6 +147,7 @@ public sealed class RcmInputMapper : IRcmInputMapper
             EligibilityOfflineDate = DateTimeIso(claim.EligibilityOfflineDate),
             AuthorizationOfflineDate = DateTimeIso(claim.AuthorizationOfflineDate),
             Transfer = claim.IsTransfer,
+            Newborn = claim.IsNewborn ? true : null,
         };
 
         EnsureClaimDefaults(claim);
@@ -444,8 +445,21 @@ public sealed class RcmInputMapper : IRcmInputMapper
         };
     }
 
+    /// <summary>
+    /// The coverage subscriber when it is not the patient: the explicit <see cref="Coverage.SubscriberPatientId"/>, or,
+    /// when the coverage belongs to someone else (a newborn checked or claimed on the mother's coverage, IG 6.5), the
+    /// coverage holder. Null when the patient is the subscriber.
+    /// </summary>
+    public static string? SubscriberIdFor(Coverage c, Patient patient)
+    {
+        if (!string.IsNullOrWhiteSpace(c.SubscriberPatientId) && c.SubscriberPatientId != patient.Id) return c.SubscriberPatientId;
+        if (string.IsNullOrWhiteSpace(c.SubscriberPatientId) && !string.IsNullOrWhiteSpace(c.PatientId) && c.PatientId != patient.Id) return c.PatientId;
+        return null;
+    }
+
     public CoverageInput MapCoverage(Coverage c, Patient patient)
     {
+        var holderIsSubscriber = string.IsNullOrWhiteSpace(c.SubscriberPatientId) && SubscriberIdFor(c, patient) != null;
         var input = new CoverageInput
         {
             Id = SafeId(c.Id),
@@ -454,8 +468,11 @@ public sealed class RcmInputMapper : IRcmInputMapper
                 FirstNonEmpty(c.CoverageIdentifierValue, c.MemberID, c.PolicyNumber)),
             Status = string.IsNullOrWhiteSpace(c.Status) ? "active" : c.Status.ToLowerInvariant(),
             Type = string.IsNullOrWhiteSpace(c.CoverageType) ? "EHCPOL" : c.CoverageType,
-            Relationship = string.IsNullOrWhiteSpace(c.SubscriberRelationship) ? "self" : c.SubscriberRelationship.ToLowerInvariant(),
-            SubscriberPatientId = SafeId(c.SubscriberPatientId ?? patient.Id),
+            // A newborn on the mother's coverage is the subscriber's child unless the coverage records otherwise.
+            Relationship = !string.IsNullOrWhiteSpace(c.SubscriberRelationship) && !(holderIsSubscriber && c.SubscriberRelationship.Equals("self", StringComparison.OrdinalIgnoreCase))
+                ? c.SubscriberRelationship.ToLowerInvariant()
+                : holderIsSubscriber ? "child" : "self",
+            SubscriberPatientId = SafeId(SubscriberIdFor(c, patient) ?? patient.Id),
             PolicyHolderOrganizationId = string.IsNullOrWhiteSpace(c.PolicyHolderOrganizationId) ? null : SafeId(c.PolicyHolderOrganizationId!),
             Period = c.CoverageStartDate == default ? null : Period(c.CoverageStartDate, c.CoverageEndDate == default ? null : c.CoverageEndDate),
         };
@@ -472,10 +489,12 @@ public sealed class RcmInputMapper : IRcmInputMapper
         Coverage coverage, Patient patient, CoverageInput coverageInput, CancellationToken ct = default)
     {
         PatientInput? subscriber = null;
-        if (!string.IsNullOrWhiteSpace(coverage.SubscriberPatientId) && coverage.SubscriberPatientId != patient.Id)
+        var subscriberId = SubscriberIdFor(coverage, patient);
+        if (subscriberId != null)
         {
-            var subscriberEntity = coverage.SubscriberPatient
-                ?? await _db.Patients.AsNoTracking().FirstOrDefaultAsync(p => p.Id == coverage.SubscriberPatientId, ct);
+            var subscriberEntity = (coverage.SubscriberPatient?.Id == subscriberId ? coverage.SubscriberPatient : null)
+                ?? (coverage.Patient?.Id == subscriberId ? coverage.Patient : null)
+                ?? await _db.Patients.AsNoTracking().FirstOrDefaultAsync(p => p.Id == subscriberId, ct);
             if (subscriberEntity != null) subscriber = MapPatient(subscriberEntity);
             else coverageInput.SubscriberPatientId = SafeId(patient.Id);
         }

@@ -1863,6 +1863,9 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsNewborn")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsShadowBilling")
                         .HasColumnType("bit");
 
@@ -5009,6 +5012,12 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool?>("IsEligible")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsNewborn")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsTransfer")
                         .HasColumnType("bit");
 
                     b.Property<string>("MessageId")

@@ -18,14 +18,14 @@ These are the copies in the repository. Newer versions may exist on the NPHIES p
 ## Summary
 
 Of the 25 certification test cases:
-- **14 look supported** by the code;
+- **18 look supported** by the code (4 of them since G1 and G2 were fixed);
 - **2 are partly supported**;
-- **9 are blocked** by missing features.
+- **5 are blocked** by missing features.
 
-Four gaps cause all 9 blocks:
+Four gaps caused the original 9 blocks; the first two are now fixed:
 
-1. **No newborn support.** `extension-newborn` is not implemented anywhere.
-2. **No transfer flag on eligibility requests.**
+1. ~~**No newborn support.**~~ *Fixed (G1).*
+2. ~~**No transfer flag on eligibility requests.**~~ *Fixed (G2).*
 3. **No references from a claim to an online eligibility response or a prior-auth response.**
 4. **Advanced authorization (APA) cancellation is not applied.**
 
@@ -42,8 +42,8 @@ Two smaller issues would also cause NPHIES rejections or wrong reports:
 | # | Test case | Status | Gap |
 |---|---|---|---|
 | 1 | Validation with any member ID | ✅ | |
-| 2 | Discovery + Benefits without a coverage, with the **transfer** extension | ❌ | G2 |
-| 3 | Validation + Benefits for a **newborn** (newborn extension; mother with Iqama, newborn with MRN) | ❌ | G1 |
+| 2 | Discovery + Benefits without a coverage, with the **transfer** extension | ✅ | G2, fixed |
+| 3 | Validation + Benefits for a **newborn** (newborn extension; mother with Iqama, newborn with MRN) | ✅ | G1, fixed |
 | 4 | Not active (`siteEligibility = not-active`, inforce false) | ✅ | |
 | 5 | Error 1658, no member found | ✅ | |
 
@@ -58,7 +58,7 @@ Two smaller issues would also cause NPHIES rejections or wrong reports:
 | 5 | Pharmacy: days-supply linked by `informationSequence`; unlisted drug with SFDA shadow billing | ✅ | |
 | 6 | Resubmission of a rejected authorization (`related = prior`) | ✅ | |
 | 7 | Follow-up institutional authorization (`related = prior`, one service added) | ✅ | |
-| 8 | **Newborn** authorization (birth-weight, Z38 diagnosis) | ❌ | G1 |
+| 8 | **Newborn** authorization (birth-weight, Z38 diagnosis) | ✅ | G1, fixed |
 | 9 | Referral (**transfer**) authorization | ⚠️ | G9: the transfer details in the response are not read |
 | 10 | Advanced authorization: poll filtered to APAs, show the APA, answer its communication request, payer cancels it | ❌ | G4 |
 
@@ -71,7 +71,7 @@ Two smaller issues would also cause NPHIES rejections or wrong reports:
 | 3 | Institutional, offline eligibility; vitals, attachment, icu-hours, encounter, package with details; status check | ✅ | |
 | 4 | Dental, offline authorization, cancel or nullify | ✅ | |
 | 5 | Claim without references, error response | ✅ | |
-| 6 | **Newborn** claim (mother and newborn patients, birth-weight, Z38) | ❌ | G1 |
+| 6 | **Newborn** claim (mother and newborn patients, birth-weight, Z38) | ✅ | G1, fixed |
 | 7 | Batch of at least 2 claims (optional) | ✅ | |
 | 8 | Optical claim with **eligibility and authorization response references** | ❌ | G3 |
 | 9 | Inpatient claim with 300 items (optional) | ✅ | Not tested; no item limit in the code, and the 10 MB message limit leaves room |
@@ -86,13 +86,21 @@ Two smaller issues would also cause NPHIES rejections or wrong reports:
 
 ### Priority 1: blocks certification
 
-**G1. Newborn extension (`extension-newborn`) is not implemented.**
+**G1. Newborn extension (`extension-newborn`) is not implemented.** *Fixed:*
+- Eligibility checks, prior authorizations and claims have a newborn flag and send `extension-newborn`.
+- The coverage may then belong to the mother, who is sent as the coverage subscriber with relationship `child`.
+- The claim editor warns when `birth-weight` is missing.
+- Tests: `RcmNewbornAndTransferTests`, which validates the bundles against the IG profiles.
+
+The original finding:
 - The IG (section 6.5) requires the newborn extension on eligibility, prior authorization and claims for a newborn using the mother's coverage. Prior authorizations and claims also need `birth-weight` in supportingInfo, on the birth encounter.
 - The IG package defines `StructureDefinition-extension-newborn`, but the code has no constant, builder input, mapper field or claim-editor field for it.
 - Separate subscriber and patient resources are already supported (`Subscriber` on the inputs), and so are MRN identifiers and the `birth-weight` category.
 - Blocks Eligibility #3, Authorization #8 and Claims #6.
 
-**G2. Transfer extension on eligibility requests.**
+**G2. Transfer extension on eligibility requests.** *Fixed:* eligibility checks have a transfer flag and send `extension-transfer`.
+
+The original finding:
 - `Claim.extension.transfer` is supported (`NphiesBundleBuilder`, through `Claim.IsTransfer`). `CoverageEligibilityRequest.extension.transfer` is not: `EligibilityRequestInput` has no field for it.
 - The IG (section 7.3, step 3) requires it when the receiving provider of a referral checks eligibility.
 - Blocks Eligibility #2.
@@ -205,7 +213,7 @@ These were checked and need no work for certification:
 ## Suggested order of work
 
 1. **G5 and G7.** Small changes that remove certain rejections and wrong reports. *Done.*
-2. **G1, G2 and G3:** newborn, transfer on eligibility, and the response references. Each one touches the builder inputs, the mapper, the claim editor and a docs-example test.
+2. **G1, G2 and G3:** newborn, transfer on eligibility, and the response references. *G1 and G2 done.* Each one touches the builder inputs, the mapper, the claim editor and a docs-example test.
 3. **G4:** the APA lifecycle (reissue and cancel, provider cancel, filtered poll).
 4. **G8 and G9:** timeout recovery and the referral response details.
 5. Ask NPHIES Q1–Q4 alongside, and set `Enforce` validation (G6) before the sandbox runs.

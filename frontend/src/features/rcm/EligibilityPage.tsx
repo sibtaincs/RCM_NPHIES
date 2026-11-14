@@ -34,12 +34,22 @@ export function EligibilityPage() {
   const [detail, setDetail] = useState<EligibilityCheck>();
   const [form] = Form.useForm();
   const patientId = Form.useWatch('patientId', form) as string | undefined;
+  const isNewborn = Form.useWatch('isNewborn', form) as boolean | undefined;
+  const motherId = Form.useWatch('motherId', form) as string | undefined;
 
   const q = { ...global.rcm, status, insurerId, page, pageSize };
   const list = useQuery({ queryKey: ['rcm', 'eligibility', q], queryFn: () => rcmApi.eligibility.list(q), placeholderData: keepPreviousData });
 
   const check = useMutation({
-    mutationFn: (v: { patientId: string; coverageId?: string; insurerId?: string; purposes: string[]; servicedDate?: Dayjs }) =>
+    mutationFn: (v: {
+      patientId: string;
+      coverageId?: string;
+      insurerId?: string;
+      purposes: string[];
+      servicedDate?: Dayjs;
+      isNewborn?: boolean;
+      isTransfer?: boolean;
+    }) =>
       rcmApi.eligibility.check({
         patientId: v.patientId,
         coverageId: v.coverageId,
@@ -47,6 +57,8 @@ export function EligibilityPage() {
         providerId: global.hospitalId!,
         purposes: v.purposes,
         servicedDate: v.servicedDate?.format('YYYY-MM-DD'),
+        isNewborn: !!v.isNewborn,
+        isTransfer: !!v.isTransfer,
       }),
     onSuccess: (r) => {
       setOpen(false);
@@ -133,8 +145,21 @@ export function EligibilityPage() {
           <Form.Item name="patientId" label="Patient" rules={[{ required: true }]}>
             <PatientSelect />
           </Form.Item>
+          <Form.Item name="isNewborn" valuePropName="checked" style={{ marginBottom: 8 }}>
+            <Checkbox onChange={() => form.setFieldsValue({ coverageId: undefined, motherId: undefined })}>
+              Newborn on the mother&apos;s coverage
+            </Checkbox>
+          </Form.Item>
+          {isNewborn && (
+            <Form.Item name="motherId" label="Mother (coverage holder)" rules={[{ required: true }]}>
+              <PatientSelect onChange={() => form.setFieldsValue({ coverageId: undefined })} />
+            </Form.Item>
+          )}
           <Form.Item name="coverageId" label="Coverage">
-            <CoverageSelect patientId={patientId} />
+            <CoverageSelect patientId={isNewborn ? motherId : patientId} />
+          </Form.Item>
+          <Form.Item name="isTransfer" valuePropName="checked">
+            <Checkbox>Referral / transfer of care (we are the receiving provider)</Checkbox>
           </Form.Item>
           <Form.Item name="insurerId" label="Insurer (when no coverage / discovery)">
             <InsurerSelect placeholder="Defaults to the coverage payer" />
@@ -157,6 +182,9 @@ export function EligibilityPage() {
               <Descriptions.Item label="Eligible">{detail.isEligible === null || detail.isEligible === undefined ? '—' : detail.isEligible ? 'Yes' : 'No'}</Descriptions.Item>
               <Descriptions.Item label="In force">{detail.inForce === null || detail.inForce === undefined ? '—' : detail.inForce ? 'Yes' : 'No'}</Descriptions.Item>
               <Descriptions.Item label="Site eligibility">{detail.siteEligibility ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="Flags">
+                {[detail.isNewborn && 'Newborn', detail.isTransfer && 'Transfer'].filter(Boolean).join(', ') || '—'}
+              </Descriptions.Item>
               <Descriptions.Item label="Not in force reason">{detail.notInForceReason ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Benefit period" span={2}>
                 {fmtDate(detail.benefitPeriodStart)} → {fmtDate(detail.benefitPeriodEnd)}

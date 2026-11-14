@@ -406,4 +406,10 @@ public DateTime? AccidentDate { get; set; }
 
     /// <summary>NPHIES extension-transfer (patient transferred to another facility).</summary>
     public bool? IsTransfer { get; set; }
+
+    /// <summary>
+    /// NPHIES extension-newborn (IG 6.5): the patient is a newborn using the mother's coverage. The coverage may then
+    /// belong to the mother, who is sent as the coverage subscriber.
+    /// </summary>
+    public bool IsNewborn { get; set; }
 }

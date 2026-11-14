@@ -31,6 +31,10 @@ export interface ClaimEdit {
   authorizationOfflineDate?: string | null;
   isShadowBilling: boolean;
   isTransfer?: boolean | null;
+  /** Newborn using the mother's coverage (NPHIES extension-newborn). */
+  isNewborn?: boolean;
+  /** Read-only: the patient holding the selected coverage (the mother, for a newborn claim). */
+  coverageHolderPatientId?: string | null;
   items: ClaimEditItem[];
   diagnoses: ClaimEditDiagnosis[];
   careTeam: ClaimEditCareTeam[];
