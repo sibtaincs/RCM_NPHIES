@@ -11,7 +11,7 @@ public class RouteUniquenessTests
     [TestMethod]
     public void ControllerRoutes_AreNotAmbiguous()
     {
-        var assembly = typeof(NPhies_FHIR_Integration.ApiService.Controllers.RCMController).Assembly;
+        var assembly = typeof(NPhies_FHIR_Integration.ApiService.Controllers.AuthController).Assembly;
         var controllers = assembly.GetTypes()
             .Where(t => !t.IsAbstract && typeof(ControllerBase).IsAssignableFrom(t));
 

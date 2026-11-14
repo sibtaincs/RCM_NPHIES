@@ -1,66 +1,16 @@
 using AutoMapper;
 using NPhies_FHIR_Integration.Application.DTOs;
-using NPhies_FHIR_Integration.Application.Services.Orchestration;
 using NPhies_FHIR_Integration.Domain.Entities;
 using NPhies_FHIR_Integration.Infrastructure.Repositories;
 
 namespace NPhies_FHIR_Integration.Application.Services;
 
 /// <summary>
-/// Service interface for Claim operations
+/// The claim review gate: technical and medical review decisions, the review queues, and
+/// submission (through the RCM workflow) once both reviews are approved.
 /// </summary>
 public interface IClaimService
 {
-    /// <summary>
-    /// Create a new claim
-    /// </summary>
-    Task<ClaimDto> CreateClaimAsync(CreateClaimDto dto);
-
-    /// <summary>
-    /// Get claim by ID
-    /// </summary>
-    Task<ClaimDto?> GetClaimAsync(string claimId);
-
-    /// <summary>
-    /// Get claim by ID (alias method)
-    /// </summary>
-    Task<ClaimDto?> GetClaimByIdAsync(string claimId);
-
-    /// <summary>
-    /// Get claim by claim number
-    /// </summary>
-    Task<ClaimDto?> GetClaimByNumberAsync(string claimNumber);
-
-    /// <summary>
-    /// Get all claims for a patient
-    /// </summary>
-    Task<IEnumerable<ClaimDto>> GetPatientClaimsAsync(string patientId);
-
-    /// <summary>
-    /// Get all claims by patient ID
-    /// </summary>
-    Task<IEnumerable<ClaimDto>> GetClaimsByPatientIdAsync(string patientId);
-
-    /// <summary>
-    /// Get all claims
-    /// </summary>
-    Task<IEnumerable<ClaimDto>> GetAllClaimsAsync();
-
-    /// <summary>
-    /// Get claims by status
-    /// </summary>
-    Task<IEnumerable<ClaimDto>> GetClaimsByStatusAsync(string status);
-
-    /// <summary>
-    /// Update claim
-    /// </summary>
-    Task<ClaimDto> UpdateClaimAsync(string claimId, UpdateClaimDto dto);
-
-    /// <summary>
-    /// Get claim with all details
-    /// </summary>
-    Task<ClaimDto?> GetClaimWithDetailsAsync(string claimId);
-
     /// <summary>
     /// Get details required by the claims review workflow.
     /// </summary>
@@ -99,234 +49,25 @@ public interface IClaimService
 }
 
 /// <summary>
-/// Implementation of IClaimService
+/// Implementation of <see cref="IClaimService"/>.
 /// </summary>
 public class ClaimService : IClaimService
 {
     private readonly IClaimRepository _claimRepository;
     private readonly IMapper _mapper;
-    private readonly INphiesOrchestrationService? _orchestrationService;
-    private readonly NPhies_FHIR_Integration.Application.Rcm.Services.IRcmClaimWorkflowService? _rcmClaims;
+    private readonly NPhies_FHIR_Integration.Application.Rcm.Services.IRcmClaimWorkflowService _rcmClaims;
 
     /// <summary>
-    /// Constructor with dependencies. The NPHIES orchestration service is optional:
-    /// when registered, SubmitClaimAsync transmits the claim to NPHIES; otherwise the
-    /// claim is only marked as submitted locally (after the dual-approval gate passes).
-    /// When the RCM workflow layer is registered it is used in preference to the legacy orchestration.
+    /// Constructor with dependencies. SubmitClaimAsync sends through the RCM workflow layer.
     /// </summary>
     public ClaimService(
         IClaimRepository claimRepository,
-      IMapper mapper,
-        INphiesOrchestrationService? orchestrationService = null,
-        NPhies_FHIR_Integration.Application.Rcm.Services.IRcmClaimWorkflowService? rcmClaims = null)
+        IMapper mapper,
+        NPhies_FHIR_Integration.Application.Rcm.Services.IRcmClaimWorkflowService rcmClaims)
     {
         _claimRepository = claimRepository ?? throw new ArgumentNullException(nameof(claimRepository));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
-  _orchestrationService = orchestrationService;
-        _rcmClaims = rcmClaims;
-    }
-
-    /// <summary>
-    /// Create a new claim
-    /// </summary>
-    public async Task<ClaimDto> CreateClaimAsync(CreateClaimDto dto)
-    {
-        try
-        {
-            var claim = _mapper.Map<Claim>(dto);
-            claim.Status = "active";
-            claim.CreatedAt = DateTime.UtcNow;
-            NormalizeClaimLines(claim, dto.Total);
-
-            await _claimRepository.AddAsync(claim);
-            await _claimRepository.SaveChangesAsync();
-
-            return _mapper.Map<ClaimDto>(claim);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to create claim", ex);
-        }
-    }
-
-    /// <summary>
-    /// Assigns sequences to nested lines (when omitted), derives item net amounts and the claim total.
-    /// </summary>
-    private static void NormalizeClaimLines(Claim claim, decimal? requestedTotal)
-    {
-        static void Sequence<T>(IEnumerable<T> rows, Func<T, int> get, Action<T, int> set)
-        {
-            var list = rows.ToList();
-            if (list.Count == 0) return;
-            if (list.All(r => get(r) > 0) && list.Select(get).Distinct().Count() == list.Count) return;
-            for (var i = 0; i < list.Count; i++) set(list[i], i + 1);
-        }
-
-        Sequence(claim.Items, i => i.Sequence, (i, n) => i.Sequence = n);
-        Sequence(claim.Diagnoses, d => d.Sequence, (d, n) => d.Sequence = n);
-        Sequence(claim.CareTeam, c => c.Sequence, (c, n) => c.Sequence = n);
-        Sequence(claim.SupportingInfo, s => s.Sequence, (s, n) => s.Sequence = n);
-
-        foreach (var item in claim.Items)
-        {
-            item.ClaimId = claim.Id;
-            if (item.Net is null && item.UnitPrice is not null)
-                item.Net = Math.Round((item.Quantity ?? 1m) * item.UnitPrice.Value * (item.Factor ?? 1m) + (item.Tax ?? 0m), 2);
-        }
-        foreach (var d in claim.Diagnoses) d.ClaimId = claim.Id;
-        foreach (var c in claim.CareTeam) c.ClaimId = claim.Id;
-        foreach (var s in claim.SupportingInfo) s.ClaimId = claim.Id;
-
-        if (requestedTotal is null && claim.Items.Count > 0)
-            claim.Total = claim.Items.Sum(i => i.Net ?? 0m);
-        if (string.IsNullOrWhiteSpace(claim.TotalCurrency)) claim.TotalCurrency = "SAR";
-    }
-
-    /// <summary>
-    /// Get claim by ID
-    /// </summary>
-    public async Task<ClaimDto?> GetClaimAsync(string claimId)
-    {
-        try
-        {
-            var claim = await _claimRepository.GetByIdAsync(claimId);
-            return claim != null ? _mapper.Map<ClaimDto>(claim) : null;
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to retrieve claim", ex);
-        }
-    }
-
-    /// <summary>
-    /// Get claim by ID (alias method)
-    /// </summary>
-    public async Task<ClaimDto?> GetClaimByIdAsync(string claimId)
-    {
-        return await GetClaimAsync(claimId);
-    }
-
-    /// <summary>
-    /// Get claim by claim number
-    /// </summary>
-    public async Task<ClaimDto?> GetClaimByNumberAsync(string claimNumber)
-    {
-        try
-        {
-            var claim = await _claimRepository.GetByClaimNumberAsync(claimNumber);
-            return claim != null ? _mapper.Map<ClaimDto>(claim) : null;
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to retrieve claim by number", ex);
-        }
-    }
-
-    /// <summary>
-    /// Get all claims for a patient
-    /// </summary>
-    public async Task<IEnumerable<ClaimDto>> GetPatientClaimsAsync(string patientId)
-    {
-        try
-        {
-            var claims = await _claimRepository.GetByPatientIdAsync(patientId);
-            return _mapper.Map<IEnumerable<ClaimDto>>(claims);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to retrieve patient claims", ex);
-        }
-    }
-
-    /// <summary>
-    /// Get all claims by patient ID (alias method)
-    /// </summary>
-    public async Task<IEnumerable<ClaimDto>> GetClaimsByPatientIdAsync(string patientId)
-    {
-        return await GetPatientClaimsAsync(patientId);
-    }
-
-    /// <summary>
-    /// Get all claims
-    /// </summary>
-    public async Task<IEnumerable<ClaimDto>> GetAllClaimsAsync()
-    {
-        try
-        {
-            var claims = await _claimRepository.GetAllAsync();
-            return _mapper.Map<IEnumerable<ClaimDto>>(claims);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to retrieve all claims", ex);
-        }
-    }
-
-    /// <summary>
-    /// Get claims by status
-    /// </summary>
-    public async Task<IEnumerable<ClaimDto>> GetClaimsByStatusAsync(string status)
-    {
-        try
-        {
-            var claims = await _claimRepository.GetByStatusAsync(status);
-            return _mapper.Map<IEnumerable<ClaimDto>>(claims);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to retrieve claims by status", ex);
-        }
-    }
-
-    /// <summary>
-    /// Update claim
-    /// </summary>
-    public async Task<ClaimDto> UpdateClaimAsync(string claimId, UpdateClaimDto dto)
-    {
-        var claim = await _claimRepository.GetByIdAsync(claimId)
-            ?? throw new KeyNotFoundException($"Claim with ID {claimId} not found");
-
-        // Sent versions are owned by the NPHIES lifecycle (resubmit / update / cancel), and status & totals are
-        // derived — never accept them from a free-form update.
-        if (!NPhies_FHIR_Integration.Application.Rcm.Services.RcmClaimEditorService.IsEditable(claim))
-            throw NPhies_FHIR_Integration.Application.Rcm.RcmWorkflowException.Conflict(
-                $"Claim {claim.ClaimNumber} is '{claim.NphiesStatus}' and can no longer be edited. Use the correction actions (resubmit / update / cancel) instead.");
-
-        try
-        {
-            var status = claim.Status;
-            var total = claim.Total;
-            _mapper.Map(dto, claim);
-            claim.Status = status;
-            claim.Total = total;
-            claim.FhirClaimBundle = null;
-            claim.UpdatedAt = DateTime.UtcNow;
-
-            _claimRepository.Update(claim);
-            await _claimRepository.SaveChangesAsync();
-
-            return _mapper.Map<ClaimDto>(claim);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to update claim", ex);
-        }
-    }
-
-    /// <summary>
-    /// Get claim with all details
-    /// </summary>
-    public async Task<ClaimDto?> GetClaimWithDetailsAsync(string claimId)
-    {
-        try
-        {
-        var claim = await _claimRepository.GetWithDetailsAsync(claimId);
-            return claim != null ? _mapper.Map<ClaimDto>(claim) : null;
-        }
-     catch (Exception ex)
-        {
-   throw new InvalidOperationException("Failed to retrieve claim with details", ex);
-  }
+        _rcmClaims = rcmClaims ?? throw new ArgumentNullException(nameof(rcmClaims));
     }
 
     public async Task<ClaimWorkflowDetailsDto?> GetClaimWorkflowDetailsAsync(string claimId)
@@ -596,9 +337,7 @@ ClaimNumber = claim.ClaimNumber,
        $"Medical: {claim.MedicalReviewStatus}.");
      }
 
-     // ---- Transmit to NPHIES via the RCM workflow layer (preferred) ----
-      if (_rcmClaims is not null)
-     {
+     // ---- Transmit to NPHIES via the RCM workflow layer ----
         try
         {
             await _rcmClaims.SubmitAsync(claimId);
@@ -616,52 +355,6 @@ ClaimNumber = claim.ClaimNumber,
         updated.UpdatedAt = DateTime.UtcNow;
         _claimRepository.Update(updated);
         await _claimRepository.SaveChangesAsync();
-        var dto = _mapper.Map<ClaimDto>(updated);
-        return dto;
-     }
-
-     // ---- Transmit to NPHIES (if orchestration configured) ----
-      if (_orchestrationService is not null)
-     {
-    if (claim.Patient is null || claim.Provider is null || claim.Insurer is null || claim.Coverage is null)
-   {
-      throw new InvalidOperationException(
-        $"Claim {claim.ClaimNumber} is missing required related data " +
-       "(Patient, Provider, Insurer, or Coverage) needed for NPHIES submission.");
-    }
-
-    try
-        {
-     var response = await _orchestrationService.SubmitClaimAsync(
-      claim,
-     claim.Patient,
-       claim.Provider,
-     claim.Insurer,
-       claim.Coverage,
-    claim.Encounter);
-
-       // Capture NPHIES outcome on the claim.
-   claim.Status = string.IsNullOrWhiteSpace(response?.ClaimResponseStatus)
-     ? "submitted"
-        : response!.ClaimResponseStatus;
-      }
-   catch (Exception ex)
-   {
-       throw new InvalidOperationException(
-     $"NPHIES submission failed for claim {claim.ClaimNumber}: {ex.Message}", ex);
-      }
-   }
-        else
-    {
-       // No NPHIES transport configured � mark as submitted locally.
-     claim.Status = "submitted";
-      }
-
-    claim.UpdatedAt = DateTime.UtcNow;
-
-        _claimRepository.Update(claim);
-    await _claimRepository.SaveChangesAsync();
-
-    return _mapper.Map<ClaimDto>(claim);
+        return _mapper.Map<ClaimDto>(updated);
     }
 }

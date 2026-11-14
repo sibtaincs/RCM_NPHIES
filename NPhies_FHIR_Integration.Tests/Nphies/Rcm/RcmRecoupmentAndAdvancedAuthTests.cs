@@ -18,7 +18,7 @@ public class RcmRecoupmentAndAdvancedAuthTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     [TestMethod]
     public async Task Recoupment_referencing_predecessor_reverses_claim_payment()
@@ -106,7 +106,7 @@ public class RcmRecoupmentAndAdvancedAuthTests
     [TestMethod]
     public async Task Evidence_pack_contains_exchanged_bundles_and_summary()
     {
-        await _host.DisposeAsync();
+        await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
         _host = await RcmTestHost.CreateAsync(new Dictionary<string, string?> { ["Nphies:EnableMessageAudit"] = "true" });
         var seed = await _host.SeedPartiesAsync();
         var claim = await _host.SeedClaimAsync(seed, "req_299060");

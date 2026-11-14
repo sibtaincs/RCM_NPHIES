@@ -24,7 +24,7 @@ public class NphiesSandboxTests
     }
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     [TestMethod]
     public async Task Router_uses_sandbox_when_enabled_or_activated()

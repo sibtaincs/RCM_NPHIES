@@ -105,7 +105,6 @@ public static class RcmServiceCollectionExtensions
         services.AddScoped<Documents.IClaimDocumentStorage, Documents.ClaimDocumentStorage>();
         services.AddSingleton<Documents.IPdfCompressor, Documents.GhostscriptPdfCompressor>();
         services.AddScoped<Documents.IRcmDocumentService, Documents.RcmDocumentService>();
-        services.AddScoped<NPhies_FHIR_Integration.Application.Services.Validation.IEnhancedEligibilityVerificationService, NPhies_FHIR_Integration.Application.Services.Validation.EnhancedEligibilityVerificationService>();
         return services;
     }
 }

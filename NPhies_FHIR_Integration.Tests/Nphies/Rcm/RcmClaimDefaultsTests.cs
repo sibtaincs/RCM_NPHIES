@@ -20,7 +20,7 @@ public class RcmClaimDefaultsTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     [TestMethod]
     public async Task Claim_without_episode_or_invoice_sends_and_stores_defaults()

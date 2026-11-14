@@ -17,7 +17,7 @@ public class RcmClaimEditorTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     private static ClaimEditDto NewDraft(RcmTestHost.Seed seed) => new()
     {
@@ -94,7 +94,7 @@ public class RcmClaimEditorTests
     }
 
     [TestMethod]
-    public async Task Submitted_claim_is_locked_for_editor_and_legacy_put()
+    public async Task Submitted_claim_is_locked_for_editor()
     {
         var seed = await _host.SeedPartiesAsync();
         var claim = await _host.SeedClaimAsync(seed, "req_299060");
@@ -108,12 +108,6 @@ public class RcmClaimEditorTests
         var ex = await XAssert.ThrowsAsync<RcmWorkflowException>(() =>
             _host.RunAsync<IRcmClaimEditorService, ClaimEditDto>(s => s.UpdateAsync(claim.Id, view, "tester", null)));
         Assert.AreEqual(RcmErrorKind.Conflict, ex.Kind);
-
-        var legacy = await XAssert.ThrowsAsync<RcmWorkflowException>(() =>
-            _host.QueryAsync(db => new ClaimService(new NPhies_FHIR_Integration.Infrastructure.Repositories.ClaimRepository(db),
-                    new AutoMapper.MapperConfiguration(_ => { }).CreateMapper())
-                .UpdateClaimAsync(claim.Id, new UpdateClaimDto { Status = "Paid", Total = 1m })));
-        Assert.AreEqual(RcmErrorKind.Conflict, legacy.Kind);
         var stored = await _host.GetClaimAsync(claim.Id);
         Assert.AreEqual(230m, stored.Total);
 

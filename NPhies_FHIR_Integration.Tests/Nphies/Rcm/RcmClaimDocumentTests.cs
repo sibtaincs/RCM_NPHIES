@@ -22,7 +22,7 @@ public class RcmClaimDocumentTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     private static byte[] FakePdf(int size, int seed = 1)
     {
@@ -167,7 +167,7 @@ public class RcmClaimDocumentTests
     [TestMethod]
     public async Task Audit_store_persists_stripped_request_json()
     {
-        await _host.DisposeAsync();
+        await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
         _host = await RcmTestHost.CreateAsync(new Dictionary<string, string?> { ["Nphies:EnableMessageAudit"] = "true" });
         var seed = await _host.SeedPartiesAsync();
         var claim = await _host.SeedClaimAsync(seed, "req_299060");
@@ -273,7 +273,7 @@ public class RcmClaimDocumentTests
     [TestMethod]
     public async Task Health_flags_attachments_over_message_budget()
     {
-        await _host.DisposeAsync();
+        await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
         _host = await RcmTestHost.CreateAsync(new Dictionary<string, string?>
         {
             ["Rcm:Documents:MaxMessageBytes"] = "100000",
@@ -333,7 +333,7 @@ public class RcmClaimDocumentTests
     public async Task File_system_store_writes_outside_database()
     {
         var root = Path.Combine(Path.GetTempPath(), "rcm-docs-" + Guid.NewGuid().ToString("N"));
-        await _host.DisposeAsync();
+        await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
         _host = await RcmTestHost.CreateAsync(new Dictionary<string, string?>
         {
             ["Rcm:Documents:Store"] = "FileSystem",

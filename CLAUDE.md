@@ -17,10 +17,10 @@ dotnet run --project NPhies_FHIR_Integration.ApiService --launch-profile https  
 
 # Tests. The RCM workflow tests need SQL Server; point them at one:
 export NPHIES_TEST_SQLSERVER="Server=localhost,1433;User Id=sa;Password=...;TrustServerCertificate=true"
+export NPHIES_TEST_SQLSERVER='Server=.\SQLEXPRESS;Integrated Security=true;TrustServerCertificate=true'  # local SQL Express
 dotnet test NPhies_FHIR_Integration.sln
 dotnet test NPhies_FHIR_Integration.Tests --filter "FullyQualifiedName~RcmClaimWorkflowTests"          # one class (MSTest)
 dotnet test NPhies_FHIR_Integration.Tests --filter "FullyQualifiedName~RcmClaimWorkflowTests.<Method>" # one test
-dotnet test NPhies_FHIR_Integration.LegacyTests --filter "FullyQualifiedName~DeductibleRuleTests"      # xUnit
 
 # Throw-away SQL Server for tests or a local run
 docker run -d --name nphies-sql -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=Test_Passw0rd!" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
@@ -38,7 +38,7 @@ dotnet ef migrations script --idempotent --project NPhies_FHIR_Integration.Infra
 **Test behavior:**
 - Without `NPHIES_TEST_SQLSERVER`, `RcmTestHost` uses `localhost` with Windows authentication, and marks the DB tests **Inconclusive** if it can't connect. `NPHIES_TEST_REQUIRE_SQLSERVER=true` turns that into a failure; CI sets it.
 - Each run creates `NPhiesRcmTests_<guid>` and drops it at assembly cleanup.
-- CI (`.github/workflows/ci.yml`) builds Release, runs both test projects against a SQL Server service container, then lints and builds the frontend.
+- CI (`.github/workflows/ci.yml`) builds Release, runs the tests against a SQL Server service container, then lints and builds the frontend.
 
 **Local configuration:**
 - Secrets come from user-secrets or environment variables, never `appsettings*.json`: `ConnectionStrings:DefaultConnection`, `JwtSettings:Secret` (32+ characters) and `Seed:AdminPassword`.
@@ -46,23 +46,23 @@ dotnet ef migrations script --idempotent --project NPhies_FHIR_Integration.Infra
 - `Nphies:Sandbox:Enabled=true` routes all NPHIES traffic to an in-process simulator (`Application/Nphies/Sandbox/NphiesSandboxTransport.cs`), so the app runs without a certificate.
 
 **Development startup:**
-- Only in Development does `Program.cs` apply migrations and run the seeders (sample hospitals, payers, patients and claims, the `admin` user, roles and permissions).
-- Known bug: if the database does not exist yet, `CanConnectAsync()` returns false and migrations are skipped. Create the empty database first.
+- Only in Development does `Program.cs` apply migrations (creating the database if it is missing) and run the seeders (sample hospitals, payers, patients and claims, the `admin` user, roles and permissions).
 
 ## Architecture
 
-### Two stacks: build on the new one
+### Code layout
 
-- **Current, tested path:**
-  - `Application/Nphies/`: the messaging core.
-  - `Application/Rcm/`: the RCM workflows.
-  - `Infrastructure/Nphies/`: the mTLS transport, certificate provider and message audit store.
-  - `ApiService/Controllers/Rcm/`: the controllers, under `api/rcm/*`.
-- **Legacy:**
-  - `Application/Services/*` (about 40k lines) and most controllers directly under `ApiService/Controllers/`.
-  - Several of these services are stubs or simulate their work: `PaymentService` and `ReportingService` contain `TODO`s; webhooks, API keys and notifications are held in memory.
-  - Many folders are referenced by no API code: Analytics, MachineLearning, Reporting, Infrastructure, Search, Tenants, Enterprise.
-  - Phase 1 of the roadmap consolidates onto the new path. Don't extend the legacy services.
+- `Application/Nphies/`: the messaging core.
+- `Application/Rcm/`: the RCM workflows. New workflow code goes here.
+- `Infrastructure/Nphies/`: the mTLS transport, certificate provider and message audit store.
+- `ApiService/Controllers/Rcm/`: the RCM controllers, under `api/rcm/*`.
+- Other controllers directly under `ApiService/Controllers/`:
+  - `Auth`, `Users` and `AccessControl`: login, users, roles and permissions.
+  - `Masters` and `DataExplorer`: generic master-data CRUD and the admin data browser.
+  - `Health`.
+  - `Audit`: see the known issue under Security.
+  - `Claims`: the technical and medical review gate. It is backed by `Application/Services/ClaimService.cs` and is due to move under `api/rcm/*`.
+- The legacy `Application/Services/*` layer, its controllers and `LegacyTests` were removed in Phase 1. Don't reintroduce parallel services; extend `Rcm/`.
 
 ### NPHIES messaging core (`docs/nphies-messaging-core.md`)
 
@@ -91,14 +91,15 @@ Workflow code must use these interfaces, never raw HTTP:
    - 409 is returned for a wrong state, a review gate, or a timeout that needs a status-check.
    - Claims require approved technical and medical review before sending when `Rcm:RequireReviewApprovalForClaims` is set.
 
-Amounts adjudicated by the payer (the ClaimResponse) are the source of truth. The provider-side engines (`PaymentCalculationEngine`, `Services/RCM/Rules/*`) only estimate, and have known defects; see the skipped tests in `LegacyTests`.
+Amounts adjudicated by the payer (the ClaimResponse) are the source of truth. There is no provider-side adjudication engine.
 
 ### Security and multi-hospital scoping
 
 - JWT bearer authentication with a **fallback policy that requires an authenticated user on every endpoint**. Use `[AllowAnonymous]` explicitly.
 - Fine-grained access uses `[HasPermission(Permissions.X)]`, resolved from database-driven roles (`ApiService/Security/`).
 - `RcmControllerBase.Scope()` limits non-admin users to their organization (hospital) through the organization claim.
-- Only the `api/rcm/*`, master-data and user/role controllers apply permissions and scoping. The legacy controllers don't yet.
+- Every controller uses `[HasPermission]` or an explicit `IAuthorizationService` check; `Auth` and `Health` are `[AllowAnonymous]` where needed. Hospital scoping (`Scope()`) applies only to the `api/rcm/*` controllers.
+- **Known issue:** `AuditController` depends on `IPermissionAuditService`, which has no registered implementation. Its old implementation read entities that EF doesn't map, so `/api/audit/*` fails at runtime; the tests register a fake. Rebuild it on the `AuditLogs` table before relying on it.
 
 ### Data
 
@@ -114,7 +115,6 @@ Amounts adjudicated by the payer (the ClaimResponse) are the source of truth. Th
   - full RCM workflows through the real services and EF Core, with `FakeNphiesTransport` replying with the docs examples (`RcmTestHost`);
   - endpoint authorization;
   - a regression test that every seeded claim conforms to the IG.
-- **`NPhies_FHIR_Integration.LegacyTests`** (xUnit, Moq, EF InMemory) covers the legacy services. Delete each test together with the code it covers when consolidating.
 
 ## NPHIES reference material
 

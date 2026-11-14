@@ -15,7 +15,7 @@ public class RcmPriorAuthWorkflowTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     private async Task<(RcmTestHost.Seed Seed, string PreAuthId)> SubmitPartialPreAuthAsync()
     {

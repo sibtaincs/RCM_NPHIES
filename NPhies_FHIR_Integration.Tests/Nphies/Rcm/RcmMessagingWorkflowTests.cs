@@ -15,7 +15,7 @@ public class RcmMessagingWorkflowTests
     public async Task Init() => _host = await RcmTestHost.CreateAsync();
 
     [TestCleanup]
-    public async Task Cleanup() => await _host.DisposeAsync();
+    public async Task Cleanup() => await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
 
     [TestMethod]
     public async Task Eligibility_check_stores_benefits_from_14b()
@@ -323,7 +323,7 @@ public class RcmMessagingWorkflowTests
     [TestMethod]
     public async Task Review_gate_blocks_unreviewed_claims_when_enabled()
     {
-        await _host.DisposeAsync();
+        await (_host?.DisposeAsync() ?? ValueTask.CompletedTask);
         _host = await RcmTestHost.CreateAsync(new Dictionary<string, string?> { ["Rcm:RequireReviewApprovalForClaims"] = "true" });
         var seed = await _host.SeedPartiesAsync();
         var claim = await _host.SeedClaimAsync(seed, "req_gate_1");
