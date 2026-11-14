@@ -89,6 +89,8 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
             AuthorizationOfflineDate = c.AuthorizationOfflineDate,
             IsShadowBilling = c.IsShadowBilling,
             IsTransfer = c.IsTransfer,
+            IsNewborn = c.IsNewborn,
+            CoverageHolderPatientId = c.Coverage?.PatientId,
             NphiesStatus = c.NphiesStatus ?? RcmClaimStatus.Draft,
             Editable = editable,
             LockedReason = editable ? null : LockReason(c),
@@ -357,6 +359,7 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         c.AuthorizationOfflineDate = r.AuthorizationOfflineDate;
         c.IsShadowBilling = r.IsShadowBilling;
         c.IsTransfer = r.IsTransfer;
+        c.IsNewborn = r.IsNewborn;
     }
 
     private static string? Blank(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
@@ -642,7 +645,9 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         if (c.Coverage is null) Add("Error", "COVERAGE_MISSING", "header.coverageId", "Coverage is missing.");
         else
         {
-            if (c.Coverage.PatientId != c.PatientId) Add("Error", "COVERAGE_PATIENT", "header.coverageId", "Coverage belongs to a different patient.");
+            // A newborn uses the mother's coverage (IG 6.5); the mother is then sent as the coverage subscriber.
+            if (c.Coverage.PatientId != c.PatientId && !c.IsNewborn)
+                Add("Error", "COVERAGE_PATIENT", "header.coverageId", "Coverage belongs to a different patient. For a newborn on the mother's coverage, mark the claim as newborn.");
             if (c.Coverage.InsurerId != c.InsurerId) Add("Error", "COVERAGE_INSURER", "header.coverageId", "Coverage is with a different insurer than the claim.");
             var serviceDate = c.ServicedPeriodStart ?? c.BillablePeriodStart ?? c.Items.Select(i => i.ServicedDate).Min() ?? c.CreatedDate;
             var active = string.Equals(c.Coverage.Status, "active", StringComparison.OrdinalIgnoreCase)
@@ -660,6 +665,11 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         if (!preAuth && start.HasValue && start.Value.Date > DateTime.UtcNow.Date) Add("Error", "SERVICE_FUTURE", "header.billablePeriodStart", "A claim cannot be for a future service date.");
         if (type == "institutional" && c.EncounterId is null) Add("Warning", "ENCOUNTER_MISSING", "header.encounterId", "No encounter recorded; one will be derived from the sub-type and service period. Record the actual encounter for in-patient stays.");
         if (c.ClaimSubType == "ip" && c.EncounterId is null && type != "institutional") Add("Warning", "ENCOUNTER_MISSING", "header.encounterId", "In-patient records should reference an encounter.");
+
+        // IG 6.5: newborn prior authorizations and claims carry birth-weight on the birth encounter.
+        if (c.IsNewborn && !c.SupportingInfo.Any(s => string.Equals(s.Category, "birth-weight", StringComparison.OrdinalIgnoreCase)))
+            Add("Warning", "NEWBORN_BIRTH_WEIGHT", "supportingInfo",
+                "Newborn claim without birth-weight supporting info. NPHIES requires it for the birth encounter.");
 
         // NPHIES requires an episode (Claim) and a patient invoice (every item); defaults are sent when empty.
         if (string.IsNullOrWhiteSpace(c.EpisodeIdentifierValue))
@@ -972,6 +982,7 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
             ["header.prescription"] = c.PrescriptionIdentifier,
             ["header.accident"] = c.AccidentDate is null && c.AccidentType is null ? null : $"{c.AccidentType} {D(c.AccidentDate)}".Trim(),
             ["header.shadowBilling"] = c.IsShadowBilling ? "yes" : "no",
+            ["header.newborn"] = c.IsNewborn ? "yes" : "no",
             ["header.total"] = M(c.Total),
         };
         foreach (var i in c.Items)

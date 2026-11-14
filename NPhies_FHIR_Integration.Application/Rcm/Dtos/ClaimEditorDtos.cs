@@ -43,6 +43,10 @@ public sealed class ClaimEditDto
     public DateTime? AuthorizationOfflineDate { get; set; }
     public bool IsShadowBilling { get; set; }
     public bool? IsTransfer { get; set; }
+    /// <summary>Newborn using the mother's coverage (NPHIES extension-newborn).</summary>
+    public bool IsNewborn { get; set; }
+    /// <summary>Read-only: the patient who holds the selected coverage (the mother, for a newborn claim).</summary>
+    public string? CoverageHolderPatientId { get; set; }
 
     public List<ClaimEditItemDto> Items { get; set; } = new();
     public List<ClaimEditDiagnosisDto> Diagnoses { get; set; } = new();

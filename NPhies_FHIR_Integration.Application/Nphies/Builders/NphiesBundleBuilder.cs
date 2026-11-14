@@ -63,6 +63,10 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
         if (input.ServicedPeriod != null) request.Serviced = Period(input.ServicedPeriod);
         else if (input.ServicedDate != null) request.Serviced = new Date(input.ServicedDate);
         if (facilityUrl != null) request.Facility = Ref(facilityUrl);
+        if (input.Newborn.HasValue)
+            request.Extension.Add(new Extension(NphiesExtensions.Newborn, new FhirBoolean(input.Newborn.Value)));
+        if (input.Transfer.HasValue)
+            request.Extension.Add(new Extension(NphiesExtensions.Transfer, new FhirBoolean(input.Transfer.Value)));
         if (coverageUrl != null)
         {
             request.Insurance.Add(new CoverageEligibilityRequest.InsuranceComponent
@@ -400,6 +404,8 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
             claim.Extension.Add(new Extension(NphiesExtensions.Episode, Identifier(input.Episode)));
         if (input.Transfer.HasValue)
             claim.Extension.Add(new Extension(NphiesExtensions.Transfer, new FhirBoolean(input.Transfer.Value)));
+        if (input.Newborn.HasValue)
+            claim.Extension.Add(new Extension(NphiesExtensions.Newborn, new FhirBoolean(input.Newborn.Value)));
         if (encounterUrl != null)
             claim.Extension.Add(new Extension(NphiesExtensions.Encounter, Ref(encounterUrl)));
     }

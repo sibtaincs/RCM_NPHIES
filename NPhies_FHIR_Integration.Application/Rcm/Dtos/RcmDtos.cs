@@ -38,6 +38,10 @@ public sealed class EligibilityCheckRequestDto
     public List<string> Purposes { get; set; } = new() { "validation" };
     public DateTime? ServicedDate { get; set; }
     public DateTime? ServicedPeriodEnd { get; set; }
+    /// <summary>The patient is a newborn using the mother's coverage (coverageId may then be the mother's).</summary>
+    public bool IsNewborn { get; set; }
+    /// <summary>Check by the receiving provider of a referral prior authorization (transfer of care).</summary>
+    public bool IsTransfer { get; set; }
 }
 
 public sealed class EligibilityCheckDto
@@ -48,6 +52,8 @@ public sealed class EligibilityCheckDto
     public string ProviderId { get; set; } = string.Empty;
     public string InsurerId { get; set; } = string.Empty;
     public List<string> Purposes { get; set; } = new();
+    public bool IsNewborn { get; set; }
+    public bool IsTransfer { get; set; }
     public DateTime ServicedDate { get; set; }
     public string RequestIdentifier { get; set; } = string.Empty;
     public string? MessageId { get; set; }

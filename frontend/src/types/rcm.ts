@@ -40,6 +40,10 @@ export interface EligibilityCheckRequest {
   purposes: string[];
   servicedDate?: string;
   servicedPeriodEnd?: string;
+  /** Newborn checked against the mother's coverage (coverageId is then the mother's). */
+  isNewborn?: boolean;
+  /** Check by the receiving provider of a referral (transfer of care). */
+  isTransfer?: boolean;
 }
 
 export interface EligibilityCheck {
@@ -49,6 +53,8 @@ export interface EligibilityCheck {
   providerId: string;
   insurerId: string;
   purposes: string[];
+  isNewborn?: boolean;
+  isTransfer?: boolean;
   servicedDate: string;
   requestIdentifier: string;
   messageId?: string | null;

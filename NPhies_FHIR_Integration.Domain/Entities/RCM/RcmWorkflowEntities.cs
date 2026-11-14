@@ -105,6 +105,10 @@ public class EligibilityCheck : BaseEntity
     public string InsurerId { get; set; } = string.Empty;
     /// <summary>Comma separated purposes: benefits, validation, discovery, auth-requirements.</summary>
     public string Purposes { get; set; } = "validation";
+    /// <summary>extension-newborn: the patient is a newborn checked against the mother's coverage (IG 6.5).</summary>
+    public bool IsNewborn { get; set; }
+    /// <summary>extension-transfer: check by the receiving provider of a referral (IG 7.3).</summary>
+    public bool IsTransfer { get; set; }
     public DateTime ServicedDate { get; set; }
     public string RequestIdentifierSystem { get; set; } = string.Empty;
     public string RequestIdentifierValue { get; set; } = string.Empty;

@@ -247,6 +247,8 @@ public static class RcmProjections
         ProviderId = e.ProviderId,
         InsurerId = e.InsurerId,
         Purposes = e.Purposes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+        IsNewborn = e.IsNewborn,
+        IsTransfer = e.IsTransfer,
         ServicedDate = e.ServicedDate,
         RequestIdentifier = e.RequestIdentifierValue,
         MessageId = e.MessageId,
