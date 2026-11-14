@@ -1,4 +1,5 @@
 using AutoMapper;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Application.Services;
@@ -19,7 +20,7 @@ public class EligibilityServiceTests
         var config = new MapperConfiguration(cfg =>
         {
             cfg.AddProfile<EligibilityMappingProfile>();
-        });
+        }, NullLoggerFactory.Instance);
         return config.CreateMapper();
     }
 
