@@ -292,7 +292,7 @@ CI builds and tests, the repository is cleaned up, and the status is honest. See
 
 **Done when** sandbox tests cover a timeout followed by an exact resend, a duplicate returning the stored response, the large-claim tag, and a queued response with an NPHIES sender.
 
-**Status: implemented** on `phase-2/messaging-core`. The sandbox tests are in `NphiesSandboxTransportRulesTests`; the lease, stuck-request scan and limits are in `RcmWorkerLeaseAndStuckRequestTests`. Still open: a screen for `GET api/rcm/messages/stuck`, and waking the lease holder when another instance receives a `queued-messages` tag.
+**Status: implemented** on `phase-2/messaging-core`. The sandbox tests are in `NphiesSandboxTransportRulesTests`; the lease, stuck-request scan and limits are in `RcmWorkerLeaseAndStuckRequestTests`. The stuck-request list has a screen (`/rcm/stuck`). Still open: waking the lease holder when another instance receives a `queued-messages` tag.
 
 ## Phase 3: front office: discovery and eligibility (track B2)
 | Item | Gap | Work |
@@ -306,7 +306,7 @@ CI builds and tests, the repository is cleaned up, and the status is honest. See
 
 **Done when** all Eligibility V4.0 test cases pass in the sandbox.
 
-**Status: partly implemented** on `phase-3/eligibility` (tests in `RcmEligibilityFrontOfficeTests`). Done: the three purposes, the site-eligibility reason, the claim-health warning `ELIGIBILITY_NOT_ELIGIBLE`, the 90-day newborn check, offline eligibility records (with a "Use latest" button in the claim editor), and advice for payer error codes. Insurance discovery is also done (`Application/Nphies/Discovery`, tests in `RcmInsuranceDiscoveryTests`): the guide lists the response fields but not the JSON envelope or the authorization header format, so the parser accepts an object, an array or a wrapped array, and the header value is configurable (`Nphies:Discovery:AuthorizationHeader`); confirm both against the OBA environment. Still open: running the Eligibility V4.0 test cases one by one in the sandbox.
+**Status: partly implemented** on `phase-3/eligibility` (tests in `RcmEligibilityFrontOfficeTests`). Done: the three purposes, the site-eligibility reason, the claim-health warning `ELIGIBILITY_NOT_ELIGIBLE`, the 90-day newborn check, offline eligibility records (with a "Use latest" button in the claim editor), and advice for payer error codes. Insurance discovery is also done (`Application/Nphies/Discovery`, tests in `RcmInsuranceDiscoveryTests`): the guide lists the response fields but not the JSON envelope or the authorization header format, so the parser accepts an object, an array or a wrapped array, and the header value is configurable (`Nphies:Discovery:AuthorizationHeader`); confirm both against the OBA environment. The five Eligibility V4.0 onboarding test cases pass against the sandbox (`EligibilityOnboardingCasesTests`); they have not been run against the real OBA environment.
 
 ## Phase 4: prior authorization lifecycle (track B3)
 | Item | Gap | Work |

@@ -634,3 +634,35 @@ export interface DiscoveredCoverage {
   policyNumber: string;
   created: boolean;
 }
+
+// ---- Stuck requests ----
+
+export interface StuckRequest {
+  id: string;
+  claimId: string;
+  claimNumber?: string | null;
+  providerId?: string | null;
+  insurerId?: string | null;
+  use?: string | null;
+  claimStatus: string;
+  waitingSince: string;
+  daysWaiting: number;
+  transactionId?: string | null;
+  bundleId?: string | null;
+  messageId?: string | null;
+  requestIdentifier?: string | null;
+  heldByNphies: boolean;
+  /** Flagged | Escalated | Resolved */
+  level: string;
+  flaggedAt: string;
+  escalatedAt?: string | null;
+  resolvedAt?: string | null;
+  guidance?: string | null;
+}
+
+export interface StuckScanResult {
+  flagged: number;
+  escalated: number;
+  resolved: number;
+  open: number;
+}

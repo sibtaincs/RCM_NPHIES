@@ -171,9 +171,37 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     {
         var req = request.Entry.Select(e => e.Resource).OfType<CoverageEligibilityRequest>().First();
         var key = req.Identifier.FirstOrDefault()?.Value ?? req.Id ?? string.Empty;
-        var eligible = Hash(req.Patient?.Reference ?? key) % 10 != 9;
         var coverageRef = req.Insurance.FirstOrDefault()?.Coverage?.Reference;
         var today = DateTime.UtcNow.Date;
+
+        // The members the pseudo-payer INS-FHIR knows by Iqama number (Eligibility test cases V4.0); anyone else is
+        // eligible nine times in ten, decided by their identity number so the answer never changes between runs.
+        var identities = request.Entry.Select(e => e.Resource).OfType<Patient>()
+            .SelectMany(p => p.Identifier).Select(i => i.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
+        if (identities.Contains(UnknownMemberId))
+        {
+            var notFound = new CoverageEligibilityResponse
+            {
+                Id = Guid.NewGuid().ToString(),
+                Meta = Profile(NphiesProfiles.Base + "eligibility-response"),
+                Status = FinancialResourceStatusCodes.Active,
+                Purpose = req.Purpose.Select(p => (CoverageEligibilityResponse.EligibilityResponsePurpose?)(int?)p).ToList(),
+                Patient = req.Patient,
+                Created = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd"),
+                Request = new ResourceReference { Identifier = req.Identifier.FirstOrDefault() },
+                Outcome = ClaimProcessingCodes.Error,
+                Disposition = $"The entered identity number ({UnknownMemberId}) does not exist in our system.",
+                Insurer = req.Insurer,
+            };
+            notFound.Identifier.Add(new Identifier(PayerBase + "/coverageeligibilityresponse", "EligResp_" + Hash(key)));
+            notFound.Error.Add(new CoverageEligibilityResponse.ErrorsComponent
+            {
+                Code = new CodeableConcept(NphiesCodeSystems.AdjudicationError, "1658", "No member found with the supplied patient credentials", null),
+            });
+            return Message(ctx, NphiesMessageEvents.EligibilityResponse, notFound, ctx.Header.Id);
+        }
+        var eligible = identities.Contains(ActiveMemberId)
+                       || (!identities.Contains(InactiveMemberId) && Hash(identities.FirstOrDefault() ?? req.Patient?.Reference ?? key) % 10 != 9);
 
         var response = new CoverageEligibilityResponse
         {
@@ -236,8 +264,48 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             }
         }
         response.Insurance.Add(insurance);
-        return Message(ctx, NphiesMessageEvents.EligibilityResponse, response, ctx.Header.Id);
+        var reply = Message(ctx, NphiesMessageEvents.EligibilityResponse, response, ctx.Header.Id);
+
+        // Discovery without a coverage: the payer returns every active policy it holds for the member (two here).
+        var discovery = req.Purpose.Any(p => p == CoverageEligibilityRequest.EligibilityRequestPurpose.Discovery);
+        if (discovery && coverageRef is null && eligible)
+        {
+            response.Insurance.Clear();
+            foreach (var (member, plan) in new[] { ("0000000001", "Insurance Plan A"), ("0000000002", "Insurance Plan B") })
+            {
+                var coverage = new Coverage
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Meta = Profile(NphiesProfiles.Base + "coverage"),
+                    Status = FinancialResourceStatusCodes.Active,
+                    Type = new CodeableConcept(NphiesCodeSystems.CoverageType, "EHCPOL"),
+                    Beneficiary = req.Patient,
+                    Subscriber = req.Patient,
+                    Relationship = new CodeableConcept(NphiesCodeSystems.SubscriberRelationship, "self"),
+                    Period = new Period { Start = today.AddMonths(-6).ToString("yyyy-MM-dd"), End = today.AddMonths(6).ToString("yyyy-MM-dd") },
+                };
+                coverage.Identifier.Add(new Identifier(PayerBase + "/memberid", member));
+                if (req.Insurer != null) coverage.Payor.Add(req.Insurer);
+                coverage.Class.Add(new Coverage.ClassComponent
+                {
+                    Type = new CodeableConcept("http://terminology.hl7.org/CodeSystem/coverage-class", "plan"),
+                    Value = plan,
+                    Name = plan,
+                });
+                var url = "urn:uuid:" + coverage.Id;
+                reply.Entry.Add(new Bundle.EntryComponent { FullUrl = url, Resource = coverage });
+                var copy = (CoverageEligibilityResponse.InsuranceComponent)insurance.DeepCopy();
+                copy.Coverage = new ResourceReference(url);
+                response.Insurance.Add(copy);
+            }
+        }
+        return reply;
     }
+
+    /// <summary>Members of the pseudo-payer INS-FHIR used by the Eligibility onboarding test cases (V4.0).</summary>
+    public const string ActiveMemberId = "2555555559";
+    public const string InactiveMemberId = "2555555550";
+    public const string UnknownMemberId = "2333333333";
 
     // ============================== Claims / prior authorizations ==============================
 
