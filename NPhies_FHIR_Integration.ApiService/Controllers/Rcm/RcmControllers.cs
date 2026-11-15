@@ -12,7 +12,28 @@ namespace NPhies_FHIR_Integration.ApiService.Controllers.Rcm;
 public sealed class RcmEligibilityController : RcmControllerBase
 {
     private readonly IRcmEligibilityService _service;
-    public RcmEligibilityController(IRcmEligibilityService service) => _service = service;
+    private readonly IRcmInsuranceDiscoveryService _discovery;
+
+    public RcmEligibilityController(IRcmEligibilityService service, IRcmInsuranceDiscoveryService discovery)
+    {
+        _service = service;
+        _discovery = discovery;
+    }
+
+    /// <summary>
+    /// Insurance discovery (NPHIES Check Insurance API): finds the patient's policies and insurer by identity number,
+    /// so the front desk does not have to ask the patient. Not a FHIR message; nothing is stored.
+    /// </summary>
+    [HttpPost("insurance-discovery")]
+    [HasPermission(Permissions.EligibilityCheck)]
+    public async Task<ActionResult<InsuranceDiscoveryDto>> DiscoverInsurance([FromBody] InsuranceDiscoveryRequestDto request, CancellationToken ct)
+        => Ok(await _discovery.DiscoverAsync(request, ct));
+
+    /// <summary>Saves a discovered policy as a coverage of the patient. The policy is looked up again at NPHIES.</summary>
+    [HttpPost("insurance-discovery/coverage")]
+    [HasPermission(Permissions.PatientsUpdate)]
+    public async Task<ActionResult<DiscoveredCoverageDto>> AddDiscoveredCoverage([FromBody] AddDiscoveredCoverageDto request, CancellationToken ct)
+        => Ok(await _discovery.AddCoverageAsync(request, ct));
 
     [HttpPost]
     [HasPermission(Permissions.EligibilityCheck)]

@@ -573,3 +573,64 @@ export interface BundlePreview {
   json: string;
   warnings: string[];
 }
+
+// ---- Insurance discovery (NPHIES Check Insurance API) ----
+
+export interface InsuranceDiscoveryRequest {
+  patientId?: string;
+  /** National id, Iqama, passport, visa or border number. Defaults to the patient's identity number. */
+  patientKey?: string;
+  /** 1 nationals and residents, 2 visitors, 3 tourists, 4 premium residency, 5 Hajj and Umrah. */
+  systemType: number;
+}
+
+export interface DiscoveredPolicy {
+  policyNumber?: string | null;
+  insuranceCompanyEn?: string | null;
+  insuranceCompanyAr?: string | null;
+  insuranceCompanyId?: string | null;
+  issueDate?: string | null;
+  expiryDate?: string | null;
+  expired: boolean;
+  className?: string | null;
+  networkId?: string | null;
+  deductibleRate?: number | null;
+  maxLimit?: number | null;
+  beneficiaryType?: string | null;
+  beneficiaryNumber?: string | null;
+  name?: string | null;
+  insuranceStatus?: string | null;
+  matchedInsurerId?: string | null;
+  matchedInsurerName?: string | null;
+  existingCoverageId?: string | null;
+}
+
+export interface InsuranceDiscovery {
+  patientId?: string | null;
+  patientKey: string;
+  systemType: number;
+  found: boolean;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  simulated: boolean;
+  policies: DiscoveredPolicy[];
+}
+
+export interface AddDiscoveredCoverageRequest {
+  patientId: string;
+  patientKey?: string;
+  systemType: number;
+  policyNumber: string;
+  insurerId?: string;
+  /** For a dependent: child, spouse, parent, common, injured or other. */
+  relationship?: string;
+  /** For a dependent: the policy holder (for example the mother or father) when on file. */
+  subscriberPatientId?: string;
+}
+
+export interface DiscoveredCoverage {
+  coverageId: string;
+  insurerId: string;
+  policyNumber: string;
+  created: boolean;
+}

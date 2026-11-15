@@ -51,7 +51,7 @@ When the new version is adjudicated, the appeal and its denials are resolved. Pr
 
 | Area | Routes |
 |---|---|
-| Eligibility | `POST /api/rcm/eligibility`, `POST /api/rcm/eligibility/offline` (record a portal or phone confirmation), `POST /api/rcm/eligibility/{id}/apply-to-claim/{claimId}` (put the offline reference and date on an unsent claim), `GET /api/rcm/eligibility`, `GET /api/rcm/eligibility/{id}`, `GET /api/rcm/eligibility/patients/{patientId}/latest` |
+| Eligibility | `POST /api/rcm/eligibility`, `POST /api/rcm/eligibility/insurance-discovery` (NPHIES Check Insurance lookup by identity number), `POST /api/rcm/eligibility/insurance-discovery/coverage` (save a discovered policy as a coverage), `POST /api/rcm/eligibility/offline` (record a portal or phone confirmation), `POST /api/rcm/eligibility/{id}/apply-to-claim/{claimId}` (put the offline reference and date on an unsent claim), `GET /api/rcm/eligibility`, `GET /api/rcm/eligibility/{id}`, `GET /api/rcm/eligibility/patients/{patientId}/latest` |
 | Claims | `GET /api/rcm/claims`, `POST /api/rcm/claims/{id}/submit\|resubmit\|link-preauth\|status-check\|cancel`, `GET /api/rcm/claims/{id}/timeline\|adjudication` |
 | Prior auth | `GET /api/rcm/preauths`, `POST /api/rcm/preauths/{id}/submit\|update\|extend\|claim\|status-check\|cancel` |
 | Batches | `POST /api/rcm/batches`, `GET /api/rcm/batches`, `GET /api/rcm/batches/{batchId}` |

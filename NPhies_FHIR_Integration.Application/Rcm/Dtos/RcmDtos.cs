@@ -108,6 +108,89 @@ public sealed class OfflineEligibilityRequestDto
     public string? Notes { get; set; }
 }
 
+// ===================== Insurance discovery =====================
+
+public sealed class InsuranceDiscoveryRequestDto
+{
+    /// <summary>The patient on file; the patient key defaults to their identity number.</summary>
+    public string? PatientId { get; set; }
+    /// <summary>National id, Iqama, passport, visa or border number. Required when there is no patientId.</summary>
+    public string? PatientKey { get; set; }
+    /// <summary>1 nationals and residents (default), 2 visitors, 3 tourists, 4 premium residency, 5 Hajj and Umrah.</summary>
+    public int SystemType { get; set; } = 1;
+}
+
+public sealed class InsuranceDiscoveryDto
+{
+    public string? PatientId { get; set; }
+    public string PatientKey { get; set; } = string.Empty;
+    public int SystemType { get; set; }
+    public bool Found { get; set; }
+    /// <summary>Check Insurance error code (105 = no record found), or timeout / transport / http.</summary>
+    public string? ErrorCode { get; set; }
+    public string? ErrorMessage { get; set; }
+    /// <summary>The sandbox answered, not NPHIES.</summary>
+    public bool Simulated { get; set; }
+    public List<DiscoveredPolicyDto> Policies { get; set; } = new();
+}
+
+public sealed class DiscoveredPolicyDto
+{
+    public string? PolicyNumber { get; set; }
+    public string? InsuranceCompanyEn { get; set; }
+    public string? InsuranceCompanyAr { get; set; }
+    public string? InsuranceCompanyId { get; set; }
+    public DateTime? IssueDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+    public bool Expired { get; set; }
+    public string? ClassName { get; set; }
+    public string? NetworkId { get; set; }
+    public decimal? DeductibleRate { get; set; }
+    public decimal? MaxLimit { get; set; }
+    /// <summary>main | dependent</summary>
+    public string? BeneficiaryType { get; set; }
+    public string? BeneficiaryNumber { get; set; }
+    public string? SponsorNumber { get; set; }
+    public string? PolicyHolder { get; set; }
+    public string? InsuranceStatus { get; set; }
+    public string? InsuranceType { get; set; }
+    public string? Name { get; set; }
+    public string? Gender { get; set; }
+    public string? Nationality { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    /// <summary>The payer on file that matches the insurance company, when there is one.</summary>
+    public string? MatchedInsurerId { get; set; }
+    public string? MatchedInsurerName { get; set; }
+    /// <summary>The patient's coverage already on file for this policy, when there is one.</summary>
+    public string? ExistingCoverageId { get; set; }
+}
+
+public sealed class AddDiscoveredCoverageDto
+{
+    public string PatientId { get; set; } = string.Empty;
+    public string? PatientKey { get; set; }
+    public int SystemType { get; set; } = 1;
+    public string PolicyNumber { get; set; } = string.Empty;
+    /// <summary>
+    /// For a dependent: how the patient is related to the policy holder (child, spouse, parent, common, injured, other).
+    /// A child on the mother's or father's policy is <c>child</c>. Ignored for a main beneficiary, who is <c>self</c>.
+    /// </summary>
+    public string? Relationship { get; set; }
+    /// <summary>For a dependent: the policy holder (for example the mother or father) when they are a patient on file.</summary>
+    public string? SubscriberPatientId { get; set; }
+    /// <summary>The payer to use when none on file matches the insurance company automatically.</summary>
+    public string? InsurerId { get; set; }
+}
+
+public sealed class DiscoveredCoverageDto
+{
+    public string CoverageId { get; set; } = string.Empty;
+    public string InsurerId { get; set; } = string.Empty;
+    public string PolicyNumber { get; set; } = string.Empty;
+    /// <summary>False when the coverage was already on file.</summary>
+    public bool Created { get; set; }
+}
+
 // ===================== Claims / prior authorizations =====================
 
 public sealed class SubmissionResultDto
