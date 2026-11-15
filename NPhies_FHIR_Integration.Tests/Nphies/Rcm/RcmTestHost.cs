@@ -185,6 +185,8 @@ public sealed class RcmTestHost : IAsyncDisposable
 EXEC sp_MSforeachtable 'IF OBJECT_NAME(OBJECT_ID(''?'')) <> ''__EFMigrationsHistory'' ALTER TABLE ? NOCHECK CONSTRAINT ALL';
 EXEC sp_MSforeachtable 'SET QUOTED_IDENTIFIER ON; IF OBJECT_NAME(OBJECT_ID(''?'')) <> ''__EFMigrationsHistory'' DELETE FROM ?';
 EXEC sp_MSforeachtable 'IF OBJECT_NAME(OBJECT_ID(''?'')) <> ''__EFMigrationsHistory'' ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL';";
+        // Emptying ~90 tables and re-checking every foreign key can exceed the 30-second default on a busy SQL Express.
+        db.Database.SetCommandTimeout(TimeSpan.FromMinutes(3));
         await db.Database.ExecuteSqlRawAsync(sql);
     }
 

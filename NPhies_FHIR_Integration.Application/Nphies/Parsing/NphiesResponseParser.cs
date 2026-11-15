@@ -131,6 +131,8 @@ public sealed class NphiesResponseParser : INphiesResponseParser
             RequestMessageId = header?.Response?.Identifier,
             ResponseCode = header?.Response?.CodeElement?.ObjectValue as string,
             SenderLicense = header?.Sender?.Identifier?.Value,
+            SenderSystem = header?.Sender?.Identifier?.System,
+            MetaTags = MetaTagsOf(bundle, header, focus),
             Errors = errors,
             Eligibility = eligibility,
             Adjudication = adjudication,
@@ -140,6 +142,16 @@ public sealed class NphiesResponseParser : INphiesResponseParser
             InnerMessages = inner,
         };
     }
+
+    /// <summary>NPHIES puts meta-tags on the MessageHeader; also accept them on the bundle or the focus resource.</summary>
+    private static List<string> MetaTagsOf(Bundle bundle, MessageHeader? header, Resource? focus) =>
+        new Resource?[] { bundle, header, focus }
+            .Where(r => r?.Meta is not null)
+            .SelectMany(r => r!.Meta.Tag)
+            .Where(t => string.Equals(t.System, NphiesCodeSystems.MetaTags, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(t.Code))
+            .Select(t => t.Code)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     private static Resource? ResolveFocus(Bundle bundle, MessageHeader? header)
     {

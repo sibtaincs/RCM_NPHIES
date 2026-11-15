@@ -132,6 +132,8 @@ public static class ModelBuilderExtensions
         modelBuilder.ApplyConfiguration(new ClaimResponseItemConfiguration());
         modelBuilder.ApplyConfiguration(new ClaimDenialConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityCheckConfiguration());
+        modelBuilder.ApplyConfiguration(new RcmWorkerLeaseConfiguration());
+        modelBuilder.ApplyConfiguration(new RcmStuckRequestConfiguration());
         var rcmColumns = new RcmColumnsConfiguration();
         modelBuilder.ApplyConfiguration<Claim>(rcmColumns);
         modelBuilder.ApplyConfiguration<ClaimResponse>(rcmColumns);

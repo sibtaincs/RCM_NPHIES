@@ -6171,6 +6171,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("AdjudicationOutcome")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("BundleId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -6198,6 +6202,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("ErrorKind")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("ErrorSummary")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
@@ -6210,10 +6218,20 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("LastResentAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("MessageId")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("MetaTags")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("NphiesGenerated")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Operation")
                         .IsRequired()
@@ -6235,6 +6253,9 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<string>("RequestIdentifierValue")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ResendCount")
+                        .HasColumnType("int");
 
                     b.Property<string>("ResponseCode")
                         .HasMaxLength(50)
@@ -8244,6 +8265,110 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.HasIndex("PreAuthorizationRequestId");
 
                     b.ToTable("SupportingInfos");
+                });
+
+            modelBuilder.Entity("NPhies_FHIR_Integration.Domain.Entities.RcmStuckRequest", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("BundleId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ClaimId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ClaimStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EscalatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FlaggedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("HeldByNphies")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("InsurerId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("MessageId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ProviderId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RequestIdentifier")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TransactionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Use")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("WaitingSince")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaimId");
+
+                    b.HasIndex("Level", "ProviderId");
+
+                    b.ToTable("RcmStuckRequests", (string)null);
+                });
+
+            modelBuilder.Entity("NPhies_FHIR_Integration.Domain.Entities.RcmWorkerLease", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("AcquiredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("RcmWorkerLeases", (string)null);
                 });
 
             modelBuilder.Entity("NPhies_FHIR_Integration.Domain.Entities.RefreshToken", b =>

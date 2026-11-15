@@ -183,9 +183,37 @@ public sealed class NphiesCommunicationRequestResult
     public string? Reason { get; init; }
 }
 
+/// <summary>
+/// The three kinds of failure a provider can receive (Error received by HCP guideline). The UI must keep them apart
+/// because each one is recovered differently.
+/// </summary>
+public enum NphiesResponseErrorKind
+{
+    /// <summary>NPHIES rejected the message itself (BV-/DT-/IB-/IC-/RE-/GE-/FR- rules, or an OperationOutcome). Fix it and send a new message.</summary>
+    NphiesValidation,
+    /// <summary>The payer answered <c>outcome = error</c> without adjudicating. Send a corrected request with a new identifier.</summary>
+    PayerBusinessError,
+    /// <summary>The payer adjudicated and rejected the request (<c>adjudication-outcome = rejected</c>). This is a denial.</summary>
+    Rejection,
+}
+
+/// <summary>Codes of the <c>meta-tags</c> CodeSystem that NPHIES puts on responses.</summary>
+public static class NphiesMetaTags
+{
+    /// <summary>More messages are waiting in the provider's queue: poll.</summary>
+    public const string QueuedMessages = "queued-messages";
+    /// <summary>NPHIES answered on the payer's behalf (payer offline or slow, batch, large claim).</summary>
+    public const string NphiesGenerated = "nphies-generated";
+    /// <summary>The claim was accepted for deferred validation; the result arrives by poll.</summary>
+    public const string LargeClaim = "large-claim";
+}
+
 /// <summary>Parsed NPHIES response message.</summary>
 public sealed class NphiesResponse
 {
+    private static readonly System.Text.RegularExpressions.Regex NphiesRuleCode =
+        new(@"^(BV|DT|IB|IC|RE|GE|FR)-\d+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     /// <summary>The parsed resource (normally a message Bundle, or an OperationOutcome).</summary>
     public Resource? Resource { get; init; }
     public Bundle? Bundle => Resource as Bundle;
@@ -199,6 +227,40 @@ public sealed class NphiesResponse
     public string? ResponseCode { get; init; }
     /// <summary>Sender license (payer or NPHIES).</summary>
     public string? SenderLicense { get; init; }
+    /// <summary>Identifier system of the sender license; <c>http://nphies.sa/license/nphies</c> when NPHIES itself sent it.</summary>
+    public string? SenderSystem { get; init; }
+    /// <summary>Codes from the <c>meta-tags</c> CodeSystem found on the bundle, MessageHeader or focus resource.</summary>
+    public List<string> MetaTags { get; init; } = new();
+
+    public bool HasMetaTag(string code) => MetaTags.Contains(code, StringComparer.OrdinalIgnoreCase);
+    public bool HasQueuedMessages => HasMetaTag(NphiesMetaTags.QueuedMessages);
+    public bool IsLargeClaim => HasMetaTag(NphiesMetaTags.LargeClaim);
+
+    /// <summary>NPHIES (not the payer) produced this response, so any queue is NPHIES's, not the payer's.</summary>
+    public bool IsNphiesGenerated =>
+        HasMetaTag(NphiesMetaTags.NphiesGenerated)
+        || string.Equals(SenderSystem, Constants.NphiesIdentifierSystems.Nphies, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Which kind of failure this is, or null when the request succeeded (including queued and pended answers).
+    /// A rejection is a successful exchange with a negative decision; the other two mean the request was not adjudicated.
+    /// </summary>
+    public NphiesResponseErrorKind? ErrorKind
+    {
+        get
+        {
+            if (Resource is OperationOutcome || IsFatalError || IsTransientError) return NphiesResponseErrorKind.NphiesValidation;
+            if (Errors.Any(e => e.Code is { } c && NphiesRuleCode.IsMatch(c))) return NphiesResponseErrorKind.NphiesValidation;
+
+            var outcome = Adjudication?.Outcome ?? Eligibility?.Outcome;
+            if (string.Equals(outcome, "error", StringComparison.OrdinalIgnoreCase) || Errors.Count > 0)
+                return IsNphiesGenerated ? NphiesResponseErrorKind.NphiesValidation : NphiesResponseErrorKind.PayerBusinessError;
+
+            if (string.Equals(Adjudication?.AdjudicationOutcome, "rejected", StringComparison.OrdinalIgnoreCase))
+                return NphiesResponseErrorKind.Rejection;
+            return null;
+        }
+    }
 
     public List<NphiesError> Errors { get; init; } = new();
 

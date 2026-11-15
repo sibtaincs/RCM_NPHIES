@@ -285,6 +285,30 @@ public sealed class TransactionDto
     public string? ErrorSummary { get; set; }
     public DateTime SentAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+    /// <summary>NphiesValidation | PayerBusinessError | Rejection; null when the exchange succeeded.</summary>
+    public string? ErrorKind { get; set; }
+    public string? AdjudicationOutcome { get; set; }
+    public List<string> MetaTags { get; set; } = new();
+    public bool NphiesGenerated { get; set; }
+    public int ResendCount { get; set; }
+    public DateTime? LastResentAt { get; set; }
+}
+
+/// <summary>Result of sending the identical message of a transaction again.</summary>
+public sealed class ResendResultDto
+{
+    public string TransactionId { get; set; } = string.Empty;
+    public string Operation { get; set; } = string.Empty;
+    public string MessageId { get; set; } = string.Empty;
+    public string? BundleId { get; set; }
+    public int ResendCount { get; set; }
+    public string TransactionStatus { get; set; } = string.Empty;
+    public string? ErrorKind { get; set; }
+    public string? EntityType { get; set; }
+    public string? EntityId { get; set; }
+    /// <summary>The claim or prior authorization status after the resend, when the transaction belongs to one.</summary>
+    public string? ClaimStatus { get; set; }
+    public List<string> Errors { get; set; } = new();
 }
 
 /// <summary>Raw FHIR JSON exchanged with NPHIES for one transaction (from the NphiesMessageLogs audit).</summary>
@@ -351,6 +375,26 @@ public sealed class ConformancePackageInfoDto
 
 // ===================== Poll =====================
 
+/// <summary>
+/// Filters for a poll request (IG, polling use case). With no filter NPHIES returns any pended messages up to the
+/// configured count. Include and exclude message types are mutually exclusive.
+/// </summary>
+public sealed class PollRequestDto
+{
+    /// <summary>Provider organization to poll for; default: every provider that has sent messages.</summary>
+    public string? ProviderId { get; set; }
+    /// <summary>Maximum messages per poll request, 1 to 100. Default: <c>Nphies:PollMaxCount</c>.</summary>
+    public int? Count { get; set; }
+    /// <summary>Message event codes to include, for example <c>claim-response</c> or <c>communication-request</c>.</summary>
+    public List<string> IncludeMessageTypes { get; set; } = new();
+    /// <summary>Message event codes to exclude, for example <c>payment-reconciliation</c>.</summary>
+    public List<string> ExcludeMessageTypes { get; set; } = new();
+    public DateTime? PeriodStart { get; set; }
+    public DateTime? PeriodEnd { get; set; }
+    /// <summary>Fetch the deferred response to this claim or prior authorization only (sent as <c>Task.focus.identifier</c>).</summary>
+    public string? FocusClaimId { get; set; }
+}
+
 public sealed class PollRunResultDto
 {
     public int PollRequests { get; set; }
@@ -365,6 +409,47 @@ public sealed class PollRunResultDto
     public List<string> AdvancedAuthorizationIds { get; set; } = new();
     public List<string> Errors { get; set; } = new();
     public List<string> Notes { get; set; } = new();
+}
+
+// ===================== Stuck requests =====================
+
+/// <summary>A claim or prior authorization with no final response for longer than <c>Rcm:StuckAfterDays</c>.</summary>
+public sealed class StuckRequestDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string ClaimId { get; set; } = string.Empty;
+    public string? ClaimNumber { get; set; }
+    public string? ProviderId { get; set; }
+    public string? InsurerId { get; set; }
+    public string? Use { get; set; }
+    public string ClaimStatus { get; set; } = string.Empty;
+    public DateTime WaitingSince { get; set; }
+    public int DaysWaiting { get; set; }
+    public string? TransactionId { get; set; }
+    /// <summary>Bundle.id of the request, to quote to NPHIES support.</summary>
+    public string? BundleId { get; set; }
+    public string? MessageId { get; set; }
+    public string? RequestIdentifier { get; set; }
+    public bool HeldByNphies { get; set; }
+    /// <summary>Flagged | Escalated | Resolved</summary>
+    public string Level { get; set; } = string.Empty;
+    public DateTime FlaggedAt { get; set; }
+    public DateTime? EscalatedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    /// <summary>What to do next.</summary>
+    public string? Guidance { get; set; }
+}
+
+public sealed class StuckScanResultDto
+{
+    /// <summary>Newly flagged in this scan.</summary>
+    public int Flagged { get; set; }
+    /// <summary>Newly escalated in this scan.</summary>
+    public int Escalated { get; set; }
+    /// <summary>Closed in this scan because a final response arrived.</summary>
+    public int Resolved { get; set; }
+    /// <summary>Requests still waiting after the scan.</summary>
+    public int Open { get; set; }
 }
 
 // ===================== Communications =====================

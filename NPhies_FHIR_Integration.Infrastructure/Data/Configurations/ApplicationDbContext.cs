@@ -469,6 +469,8 @@ public DbSet<MedicationCodeMaster> MedicationCodeMasters { get; set; } = null!;
     public DbSet<ClaimResponseItem> ClaimResponseItems { get; set; } = null!;
     public DbSet<ClaimDenial> ClaimDenials { get; set; } = null!;
     public DbSet<EligibilityCheck> EligibilityChecks { get; set; } = null!;
+    public DbSet<RcmWorkerLease> RcmWorkerLeases { get; set; } = null!;
+    public DbSet<RcmStuckRequest> RcmStuckRequests { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

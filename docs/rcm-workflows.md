@@ -55,7 +55,7 @@ When the new version is adjudicated, the appeal and its denials are resolved. Pr
 | Claims | `GET /api/rcm/claims`, `POST /api/rcm/claims/{id}/submit\|resubmit\|link-preauth\|status-check\|cancel`, `GET /api/rcm/claims/{id}/timeline\|adjudication` |
 | Prior auth | `GET /api/rcm/preauths`, `POST /api/rcm/preauths/{id}/submit\|update\|extend\|claim\|status-check\|cancel` |
 | Batches | `POST /api/rcm/batches`, `GET /api/rcm/batches`, `GET /api/rcm/batches/{batchId}` |
-| Messages | `POST /api/rcm/messages/poll`, `POST /api/rcm/messages/inbound` (raw NPHIES bundle JSON) |
+| Messages | `POST /api/rcm/messages/poll` (optional filters: count, include or exclude types, period, `focusClaimId`), `POST /api/rcm/messages/{transactionId}/resend` (identical resend after a timeout), `GET /api/rcm/messages/stuck`, `POST /api/rcm/messages/stuck/scan`, `POST /api/rcm/messages/inbound` (raw NPHIES bundle JSON) |
 | Communications | `GET /api/rcm/communication-requests`, `GET /api/rcm/communication-requests/{id}`, `POST /api/rcm/communication-requests/{id}/respond`, `GET /api/rcm/communications`, `POST /api/rcm/communications` |
 | Payments | `GET /api/rcm/payments`, `GET /api/rcm/payments/discrepancies`, `GET /api/rcm/payments/{id}`, `POST /api/rcm/payments/{id}/acknowledge`, `POST /api/rcm/payments/details/{detailId}/match` |
 | Denials | `GET /api/rcm/denials`, `GET /api/rcm/denials/summary`, `GET /api/rcm/denials/{id}`, `PATCH /api/rcm/denials/{id}` |
@@ -75,8 +75,14 @@ List endpoints accept `providerId`, `insurerId`, `patientId`, `status`, `from`, 
 
 | Key | Default | Purpose |
 |---|---|---|
-| `PollWorkerEnabled` | `false` | Run `RcmPollWorker` (BackgroundService) |
-| `PollIntervalSeconds` | `300` | Delay between poll cycles |
+| `PollWorkerEnabled` | not set | Run `NphiesPollWorker`. When not set it runs everywhere except Development |
+| `PollIntervalSeconds` | `300` | Delay between poll cycles in working hours |
+| `OffHoursPollIntervalSeconds` | `3600` | Delay outside working hours, capped at one day |
+| `WorkingHoursStart`, `WorkingHoursEnd` | `7`, `20` | Working hours in Saudi time (UTC+3) |
+| `PollLeaseSeconds` | `900` | How long an instance keeps the poll lease without renewing; only the lease holder polls |
+| `StuckAfterDays` | `3` | Flag a claim or prior authorization with no final response after this many days |
+| `StuckEscalateAfterDays` | `30` | Escalate it: contact NPHIES support with the bundle ids |
+| `StuckScanIntervalMinutes` | `60` | How often the poll worker runs the stuck-request scan |
 | `MaxPollsPerCycle` | `10` | Polls per provider per cycle while messages keep arriving |
 | `AutoAcknowledgePayments` | `true` | Send payment-notice after ingesting a payment-reconciliation |
 | `AppealWindowDays` | `30` | Appeal deadline after a denial |

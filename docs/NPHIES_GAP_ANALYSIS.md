@@ -182,8 +182,8 @@ Not verified in the code; check during the G4 work.
 **G15. Insurance discovery (HIDP API)** (IG section 6.6). Lists the insurers holding a policy for a patient. It's a separate API with its own guideline, which isn't in the repository, and nothing implements it.
 
 **G16. Queue polling in production.** The IG (section 6.3.6) expects providers to poll the queue daily and periodically, with manual polling for urgent prior authorizations.
-- The poll worker exists, but it is off by default (`Rcm:PollWorkerEnabled=false`).
-- It is not safe to run on more than one API instance.
+- **Done in Phase 2.** The poll worker runs by default outside Development (`Rcm:PollWorkerEnabled` overrides), every `PollIntervalSeconds` in working hours and every `OffHoursPollIntervalSeconds` otherwise, never less often than daily.
+- Only the holder of the database lease (`RcmWorkerLeases`) polls, so several API instances are safe.
 
 Already listed in `docs/PROJECT_STATUS.md`; it matters for certification because deferred responses are only received through polling.
 

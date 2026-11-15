@@ -156,7 +156,7 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
         var status = claim.NphiesStatus ?? RcmClaimStatus.Draft;
         if (Submittable.Contains(status)) return;
         if (status == RcmClaimStatus.Timeout)
-            throw RcmWorkflowException.Conflict("The previous submission timed out and may have been delivered. Run a status-check or poll instead of resending.");
+            throw RcmWorkflowException.Conflict("The previous submission timed out and may have been delivered. Resend the identical message (POST api/rcm/messages/{transactionId}/resend) or run a status-check or poll; never submit it again with new ids.");
         if (RcmClaimStatus.AwaitingPayer.Contains(status))
             throw RcmWorkflowException.Conflict($"Claim is already with the payer ({status}). Use status-check or poll.");
         throw RcmWorkflowException.Conflict($"Claim is {status}. Use update/extend/resubmit to send a new version.");

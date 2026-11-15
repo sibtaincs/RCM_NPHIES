@@ -124,6 +124,7 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         inbound.EntityType = target.type;
         inbound.EntityId = target.id;
         inbound.Outcome = response.Adjudication?.Outcome ?? response.Eligibility?.Outcome ?? response.Task?.Status ?? response.PaymentReconciliation?.Outcome;
+        RcmMessageDispatcher.RecordFacts(inbound, response);
         if (target.id is null)
         {
             inbound.Status = RcmTransactionStatus.Unmatched;
@@ -319,6 +320,8 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
             "rejected" => RcmClaimStatus.Rejected,
             "partial" => RcmClaimStatus.PartiallyApproved,
             "pended" => RcmClaimStatus.Pended,
+            // Prior authorizations only: the payer says the services need no authorization (Transaction Statuses Guideline).
+            "not-required" => RcmClaimStatus.NotRequired,
             _ => string.Equals(outcome, "partial", StringComparison.OrdinalIgnoreCase) ? RcmClaimStatus.Pended : RcmClaimStatus.Approved,
         };
     }

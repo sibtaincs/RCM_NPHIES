@@ -149,6 +149,8 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
         ArgumentNullException.ThrowIfNull(input);
         if (input.Count is < 1 or > NphiesLimits.PollMaxMessages)
             throw new ArgumentOutOfRangeException(nameof(input), $"Poll count must be between 1 and {NphiesLimits.PollMaxMessages}.");
+        if (input.IncludeMessageTypes.Count > 0 && input.ExcludeMessageTypes.Count > 0)
+            throw new ArgumentException("A poll may use include-message-type or exclude-message-type, not both.", nameof(input));
 
         var ctx = new Ctx(input, _sender);
         var provider = ctx.Add(BuildOrganization(input.Provider, NphiesOrganizationKind.Provider));
@@ -170,6 +172,9 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
             Requester = Ref(provider),
             Owner = NphiesRef(null),
         };
+        // "To obtain responses to a given message, put the business identifier in Task.focus.identifier" (IG, polling).
+        if (input.Focus != null)
+            task.Focus = new ResourceReference { Identifier = Identifier(input.Focus) };
 
         foreach (var type in input.IncludeMessageTypes)
             task.Input.Add(TaskInput("include-message-type", new Code(type)));
