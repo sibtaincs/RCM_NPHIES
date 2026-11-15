@@ -738,6 +738,9 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         {
             i.InForce,
             i.NotInForceReason,
+            // Per policy when the payer gives it; otherwise the header value applies to the only policy.
+            SiteEligibility = i.SiteEligibility ?? (elig.Insurance.Count == 1 ? elig.SiteEligibility : null),
+            SiteEligibilityReason = RcmEligibilityGuidance.SiteEligibilityReason(i.SiteEligibility ?? (elig.Insurance.Count == 1 ? elig.SiteEligibility : null)),
             i.BenefitPeriodStart,
             i.BenefitPeriodEnd,
             Items = i.Items.Select(b => new

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Drawer, Form, Modal, Select, Space, Table, Typography } from 'antd';
+import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Drawer, Form, Input, List, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PhoneOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Dayjs } from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import { rcmApi } from '@/api/endpoints/rcm';
 import { useGlobalFilters } from '@/hooks/useGlobalFilters';
 import { PERMISSIONS, usePermission } from '@/hooks/usePermission';
@@ -69,9 +69,42 @@ export function EligibilityPage() {
     onError: (e) => showError('Eligibility check failed', e),
   });
 
+  const [offlineOpen, setOfflineOpen] = useState(false);
+  const [offlineForm] = Form.useForm();
+  const offlinePatientId = Form.useWatch('patientId', offlineForm) as string | undefined;
+
+  const recordOffline = useMutation({
+    mutationFn: (v: { patientId: string; coverageId?: string; insurerId?: string; reference: string; date: Dayjs; notes?: string }) =>
+      rcmApi.eligibility.recordOffline({
+        patientId: v.patientId,
+        coverageId: v.coverageId,
+        insurerId: v.insurerId,
+        providerId: global.hospitalId!,
+        reference: v.reference,
+        date: v.date.toISOString(),
+        notes: v.notes,
+      }),
+    onSuccess: (r) => {
+      setOfflineOpen(false);
+      offlineForm.resetFields();
+      void qc.invalidateQueries({ queryKey: ['rcm', 'eligibility'] });
+      setDetail(r);
+    },
+    onError: (e) => showError('Could not record the offline eligibility', e),
+  });
+
   const columns: ColumnsType<EligibilityCheck> = [
     { title: 'Requested', dataIndex: 'createdAt', render: (v) => fmtDate(v, true) },
-    { title: 'Identifier', dataIndex: 'requestIdentifier', render: (v, r) => <a onClick={() => setDetail(r)}>{v}</a> },
+    {
+      title: 'Identifier',
+      dataIndex: 'requestIdentifier',
+      render: (v, r) => (
+        <Space size={4}>
+          <a onClick={() => setDetail(r)}>{v}</a>
+          {r.isOffline && <Tag>Offline</Tag>}
+        </Space>
+      ),
+    },
     { title: 'Patient', dataIndex: 'patientId' },
     { title: 'Purposes', dataIndex: 'purposes', render: (v: string[]) => v?.join(', ') },
     { title: 'Service date', dataIndex: 'servicedDate', render: (v) => fmtDate(v) },
@@ -99,6 +132,16 @@ export function EligibilityPage() {
               }}
             >
               New check
+            </Button>
+            <Button
+              icon={<PhoneOutlined />}
+              disabled={!can(PERMISSIONS.EligibilityCheck)}
+              onClick={() => {
+                offlineForm.setFieldsValue({ date: dayjs() });
+                setOfflineOpen(true);
+              }}
+            >
+              Record offline
             </Button>
             <Button icon={<ReloadOutlined />} onClick={() => void list.refetch()} />
           </Space>
@@ -173,9 +216,80 @@ export function EligibilityPage() {
         </Form>
       </Modal>
 
+      <Modal
+        open={offlineOpen}
+        title="Record offline eligibility"
+        okText="Save"
+        okButtonProps={{ loading: recordOffline.isPending, disabled: !global.hospitalId }}
+        onCancel={() => setOfflineOpen(false)}
+        onOk={() => offlineForm.validateFields().then((v) => recordOffline.mutate(v))}
+        destroyOnClose
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="Use this when the payer confirmed eligibility on its portal or by phone. Nothing is sent to NPHIES; the reference and date go on the patient's later claims and prior authorizations."
+        />
+        {!global.hospitalId && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Select a hospital in the header filter first — it is the requesting provider." />}
+        <Form form={offlineForm} layout="vertical">
+          <Form.Item name="patientId" label="Patient" rules={[{ required: true }]}>
+            <PatientSelect onChange={() => offlineForm.setFieldsValue({ coverageId: undefined })} />
+          </Form.Item>
+          <Form.Item name="coverageId" label="Coverage">
+            <CoverageSelect patientId={offlinePatientId} />
+          </Form.Item>
+          <Form.Item name="insurerId" label="Insurer (when no coverage)">
+            <InsurerSelect placeholder="Defaults to the coverage payer" />
+          </Form.Item>
+          <Form.Item name="reference" label="Reference given by the payer" rules={[{ required: true, whitespace: true }, { max: 200 }]}>
+            <Input placeholder="Portal or call reference" />
+          </Form.Item>
+          <Form.Item name="date" label="Confirmed on" rules={[{ required: true }]}>
+            <DatePicker showTime style={{ width: '100%' }} disabledDate={(d) => d.isAfter(dayjs(), 'day')} />
+          </Form.Item>
+          <Form.Item name="notes" label="Notes">
+            <Input.TextArea rows={2} maxLength={1000} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       <Drawer open={!!detail} width={720} title={detail ? `Eligibility ${detail.requestIdentifier}` : ''} onClose={() => setDetail(undefined)}>
         {detail && (
           <>
+            {detail.isOffline && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={`Recorded offline: reference ${detail.offlineReference ?? '—'}, confirmed ${fmtDate(detail.offlineDate, true)}`}
+              />
+            )}
+            {detail.siteEligibilityReason && (
+              <Alert
+                type={detail.isEligible ? 'success' : 'warning'}
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={detail.siteEligibilityReason}
+              />
+            )}
+            {(detail.errorExplanations?.length ?? 0) > 0 && (
+              <List
+                size="small"
+                bordered
+                style={{ marginBottom: 12 }}
+                header="What went wrong"
+                dataSource={detail.errorExplanations}
+                renderItem={(e) => (
+                  <List.Item>
+                    <div>
+                      <Typography.Text strong>{[e.code, e.message].filter(Boolean).join(': ')}</Typography.Text>
+                      {e.explanation && <div>{e.explanation}</div>}
+                    </div>
+                  </List.Item>
+                )}
+              />
+            )}
             <Descriptions size="small" bordered column={2}>
               <Descriptions.Item label="Status">{statusTag(detail.status)}</Descriptions.Item>
               <Descriptions.Item label="Outcome">{statusTag(detail.outcome)}</Descriptions.Item>

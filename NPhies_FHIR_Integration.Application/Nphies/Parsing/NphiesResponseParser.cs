@@ -194,6 +194,7 @@ public sealed class NphiesResponseParser : INphiesResponseParser
             CoverageReference = insurance.Coverage?.Reference,
             InForce = insurance.Inforce,
             NotInForceReason = ExtensionCode(insurance, NphiesExtensions.NotInForceReason),
+            SiteEligibility = ExtensionCode(insurance, NphiesExtensions.SiteEligibility),
             BenefitPeriodStart = insurance.BenefitPeriod?.Start,
             BenefitPeriodEnd = insurance.BenefitPeriod?.End,
             Items = insurance.Item.Select(item => new NphiesBenefitItem

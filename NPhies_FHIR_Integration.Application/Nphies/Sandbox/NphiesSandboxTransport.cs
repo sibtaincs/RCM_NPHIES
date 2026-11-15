@@ -191,7 +191,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         };
         response.Identifier.Add(new Identifier(PayerBase + "/coverageeligibilityresponse", "EligResp_" + Hash(key)));
         response.Extension.Add(new Extension(NphiesExtensions.SiteEligibility,
-            new CodeableConcept(NphiesCodeSystems.SiteEligibility, eligible ? "eligible" : "not-eligible")));
+            new CodeableConcept(NphiesCodeSystems.SiteEligibility, eligible ? "eligible" : "not-active")));
 
         var insurance = new CoverageEligibilityResponse.InsuranceComponent
         {

@@ -91,6 +91,8 @@ public sealed class NphiesEligibilityInsurance
     public string? CoverageReference { get; init; }
     public bool? InForce { get; init; }
     public string? NotInForceReason { get; init; }
+    /// <summary>siteEligibility of this insurance entry, when the payer gives one per policy.</summary>
+    public string? SiteEligibility { get; init; }
     public string? BenefitPeriodStart { get; init; }
     public string? BenefitPeriodEnd { get; init; }
     public List<NphiesBenefitItem> Items { get; init; } = new();

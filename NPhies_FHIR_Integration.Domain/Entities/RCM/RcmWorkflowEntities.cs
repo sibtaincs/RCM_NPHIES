@@ -145,6 +145,15 @@ public class EligibilityCheck : BaseEntity
     public string? DiscoveredCoveragesJson { get; set; }
     public string? ErrorsJson { get; set; }
     public DateTime? RespondedAt { get; set; }
+
+    /// <summary>
+    /// Eligibility confirmed outside NPHIES (payer portal or phone). Nothing was sent; later claims and prior
+    /// authorizations carry <see cref="OfflineReference"/> and <see cref="OfflineDate"/> as
+    /// <c>eligibility-offline-reference</c> and <c>eligibility-offline-date</c>.
+    /// </summary>
+    public bool IsOffline { get; set; }
+    public string? OfflineReference { get; set; }
+    public DateTime? OfflineDate { get; set; }
 }
 
 /// <summary>

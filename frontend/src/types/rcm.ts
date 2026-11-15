@@ -73,6 +73,30 @@ export interface EligibilityCheck {
   errors?: unknown;
   createdAt: string;
   respondedAt?: string | null;
+  /** What the site eligibility code means for the visit, in plain language. */
+  siteEligibilityReason?: string | null;
+  /** The errors, with advice for the payer codes that have any. */
+  errorExplanations?: EligibilityError[];
+  /** Confirmed on a payer portal or by phone; nothing was sent to NPHIES. */
+  isOffline?: boolean;
+  offlineReference?: string | null;
+  offlineDate?: string | null;
+}
+
+export interface EligibilityError {
+  code?: string | null;
+  message?: string | null;
+  explanation?: string | null;
+}
+
+export interface OfflineEligibilityRequest {
+  patientId: string;
+  coverageId?: string;
+  providerId: string;
+  insurerId?: string;
+  reference: string;
+  date: string;
+  notes?: string;
 }
 
 export interface ItemAdjudication {
