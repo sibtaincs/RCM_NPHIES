@@ -27,6 +27,9 @@ public class NphiesTransactionConfiguration : IEntityTypeConfiguration<NphiesTra
         b.Property(x => x.ResponseMessageId).HasMaxLength(100);
         b.Property(x => x.ResponseEventCode).HasMaxLength(50);
         b.Property(x => x.ErrorSummary).HasMaxLength(4000);
+        b.Property(x => x.ErrorKind).HasMaxLength(30);
+        b.Property(x => x.AdjudicationOutcome).HasMaxLength(30);
+        b.Property(x => x.MetaTags).HasMaxLength(200);
 
         b.HasIndex(x => new { x.Direction, x.MessageId }).IsUnique();
         b.HasIndex(x => new { x.EntityType, x.EntityId });
@@ -167,5 +170,38 @@ public class RcmColumnsConfiguration :
         b.Property(x => x.RespondedCommunicationId).HasMaxLength(100);
         b.HasIndex(x => x.ClaimId);
         b.HasIndex(x => x.MessageId);
+    }
+}
+
+public class RcmWorkerLeaseConfiguration : IEntityTypeConfiguration<RcmWorkerLease>
+{
+    public void Configure(EntityTypeBuilder<RcmWorkerLease> b)
+    {
+        b.ToTable("RcmWorkerLeases");
+        b.HasKey(x => x.Name);
+        b.Property(x => x.Name).HasMaxLength(100);
+        b.Property(x => x.Owner).HasMaxLength(200).IsRequired();
+    }
+}
+
+public class RcmStuckRequestConfiguration : IEntityTypeConfiguration<RcmStuckRequest>
+{
+    public void Configure(EntityTypeBuilder<RcmStuckRequest> b)
+    {
+        b.ToTable("RcmStuckRequests");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.ClaimId).HasMaxLength(100).IsRequired();
+        b.Property(x => x.ProviderId).HasMaxLength(100);
+        b.Property(x => x.InsurerId).HasMaxLength(100);
+        b.Property(x => x.Use).HasMaxLength(30);
+        b.Property(x => x.ClaimStatus).HasMaxLength(50).IsRequired();
+        b.Property(x => x.TransactionId).HasMaxLength(100);
+        b.Property(x => x.BundleId).HasMaxLength(100);
+        b.Property(x => x.MessageId).HasMaxLength(100);
+        b.Property(x => x.RequestIdentifier).HasMaxLength(200);
+        b.Property(x => x.Level).HasMaxLength(20).IsRequired();
+
+        b.HasIndex(x => x.ClaimId);
+        b.HasIndex(x => new { x.Level, x.ProviderId });
     }
 }

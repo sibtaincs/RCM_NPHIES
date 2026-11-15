@@ -87,6 +87,10 @@ public static class RcmServiceCollectionExtensions
         services.Configure<RcmOptions>(configuration.GetSection(RcmOptions.SectionName));
         services.AddScoped<IRcmInputMapper, RcmInputMapper>();
         services.AddScoped<IRcmMessageDispatcher, RcmMessageDispatcher>();
+        services.AddSingleton<IRcmPollSignal, RcmPollSignal>();
+        services.AddScoped<IRcmResendService, RcmResendService>();
+        services.AddScoped<IRcmWorkerLeaseService, RcmWorkerLeaseService>();
+        services.AddScoped<IRcmStuckRequestService, RcmStuckRequestService>();
         services.AddScoped<IRcmResponseIngestor, RcmResponseIngestor>();
         services.AddScoped<IRcmInboundService, RcmInboundService>();
         services.AddScoped<IRcmEligibilityService, RcmEligibilityService>();

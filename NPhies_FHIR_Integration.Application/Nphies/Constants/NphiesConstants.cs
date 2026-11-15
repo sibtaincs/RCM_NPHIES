@@ -307,4 +307,6 @@ public static class NphiesLimits
     public const long MaxMessageSizeBytes = 10 * 1024 * 1024;
     public const int BatchMaxClaims = 200;
     public const int PollMaxMessages = 100;
+    /// <summary>A claim with more items than this is a "large claim": NPHIES accepts it and validates it later (it may change the threshold).</summary>
+    public const int LargeClaimItemThreshold = 300;
 }

@@ -25,6 +25,8 @@ import { useExplorerTables } from '@/features/data-explorer/useExplorerTables';
 import { ExplorerGrid } from '@/features/data-explorer/ExplorerGrid';
 import { BundlePreviewModal, TransactionJsonModal } from './JsonViewerModal';
 import { ClaimDocumentsTab } from './ClaimDocumentsTab';
+import { ErrorKindTag } from './ErrorKindTag';
+import { ResendButton } from './ResendButton';
 
 function ChangesTable({ changes }: { changes: ClaimFieldChange[] }) {
   return (
@@ -280,6 +282,9 @@ export function ClaimTimelineDrawer({
                       {x.direction} {x.operation}
                     </Typography.Text>{' '}
                     {statusTag(x.status)} {x.outcome && statusTag(x.outcome)}{' '}
+                    <ErrorKindTag errorKind={x.errorKind} nphiesGenerated={x.nphiesGenerated} metaTags={x.metaTags} />
+                    {x.resendCount ? <Tag>resent ×{x.resendCount}</Tag> : null}
+                    <ResendButton tx={x} claimId={claimId} />
                     <Button
                       size="small"
                       type="link"

@@ -184,17 +184,62 @@ public sealed class RcmMessagesController : RcmControllerBase
 {
     private readonly IRcmPollService _poll;
     private readonly IRcmInboundService _inbound;
+    private readonly IRcmResendService _resend;
+    private readonly IRcmStuckRequestService _stuck;
 
-    public RcmMessagesController(IRcmPollService poll, IRcmInboundService inbound)
+    public RcmMessagesController(IRcmPollService poll, IRcmInboundService inbound, IRcmResendService resend, IRcmStuckRequestService stuck)
     {
         _poll = poll;
         _inbound = inbound;
+        _resend = resend;
+        _stuck = stuck;
     }
 
+    /// <summary>
+    /// Sends the identical message of a timed-out or failed transaction again (same Bundle.id and MessageHeader.id).
+    /// NPHIES returns its stored response, so this never creates a duplicate. Prior authorization, claim,
+    /// communication and cancel only; eligibility and status-check must be sent as new requests.
+    /// </summary>
+    [HttpPost("{transactionId}/resend")]
+    [HasPermission(Permissions.ClaimsSubmit)]
+    public async Task<ActionResult<ResendResultDto>> Resend(string transactionId, CancellationToken ct)
+        => Ok(await _resend.ResendAsync(transactionId, ProviderScope(), ct));
+
+    /// <summary>
+    /// Polls NPHIES for deferred messages. The optional body filters the poll: count, include or exclude message types,
+    /// a period, or the response to one claim (<c>focusClaimId</c>). Without a body every pended message is fetched.
+    /// </summary>
     [HttpPost("poll")]
     [HasPermission(Permissions.ClaimsSubmit)]
-    public async Task<ActionResult<PollRunResultDto>> Poll([FromQuery] string? providerId, CancellationToken ct)
-        => Ok(await _poll.PollOnceAsync(providerId, ct));
+    public async Task<ActionResult<PollRunResultDto>> Poll([FromQuery] string? providerId, [FromBody] PollRequestDto? request, CancellationToken ct)
+    {
+        request ??= new PollRequestDto();
+        request.ProviderId ??= providerId;
+        // Non-admin users poll for their own hospital only.
+        if (ProviderScope() is { } scope)
+        {
+            if (!string.IsNullOrWhiteSpace(request.ProviderId) && request.ProviderId != scope)
+                return NotFound(new { message = $"Provider '{request.ProviderId}' was not found." });
+            request.ProviderId = scope;
+        }
+        return Ok(await _poll.PollAsync(request, ct));
+    }
+
+    /// <summary>
+    /// Claims and prior authorizations with no final response for longer than <c>Rcm:StuckAfterDays</c>. Escalated ones
+    /// (30 days by default) carry the bundle ids to quote to NPHIES support. <c>status</c> filters by level
+    /// (Flagged, Escalated, Resolved, All); the default is every open one.
+    /// </summary>
+    [HttpGet("stuck")]
+    [HasPermission(Permissions.ClaimsRead)]
+    public async Task<ActionResult<RcmPagedResult<StuckRequestDto>>> Stuck([FromQuery] RcmQuery query, CancellationToken ct)
+        => Ok(await _stuck.ListAsync(Scope(query), ct));
+
+    /// <summary>Runs the stuck-request scan now instead of waiting for the poll worker.</summary>
+    [HttpPost("stuck/scan")]
+    [HasPermission(Permissions.ClaimsSubmit)]
+    public async Task<ActionResult<StuckScanResultDto>> ScanStuck(CancellationToken ct)
+        => Ok(await _stuck.ScanAsync(ct));
 
     /// <summary>Ingests a raw NPHIES response message bundle (replay / out-of-band delivery). Idempotent.</summary>
     [HttpPost("inbound")]

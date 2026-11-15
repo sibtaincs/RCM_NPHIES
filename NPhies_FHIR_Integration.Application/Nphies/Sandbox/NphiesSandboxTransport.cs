@@ -5,6 +5,7 @@ using Hl7.Fhir.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NPhies_FHIR_Integration.Application.Nphies.Constants;
+using NPhies_FHIR_Integration.Application.Nphies.Parsing;
 using NPhies_FHIR_Integration.Infrastructure.Nphies;
 using FhirTask = Hl7.Fhir.Model.Task;
 
@@ -75,6 +76,27 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     };
 
     private readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _queues = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The reply to each queueable message, by provider and MessageHeader.id: what a duplicate gets back.</summary>
+    private readonly ConcurrentDictionary<string, string> _answered = new(StringComparer.Ordinal);
+    /// <summary>The deferred final response of a message that was answered "queued".</summary>
+    private readonly ConcurrentDictionary<string, string> _deferred = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _offlinePayers = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A claim or prior authorization with more items than this is a "large claim": NPHIES answers it itself
+    /// (tags <c>large-claim</c> and <c>nphies-generated</c>, outcome queued) and the result arrives by poll.
+    /// </summary>
+    public int LargeClaimItemThreshold { get; set; } = NphiesLimits.LargeClaimItemThreshold;
+
+    /// <summary>
+    /// Simulates a payer that is offline or slow: NPHIES answers its claims and prior authorizations itself
+    /// (sender NPHIES, tag <c>nphies-generated</c>, outcome queued) and the payer's response arrives by poll.
+    /// </summary>
+    public void SetPayerOffline(string payerLicense, bool offline = true)
+    {
+        if (offline) _offlinePayers[payerLicense] = true;
+        else _offlinePayers.TryRemove(payerLicense, out _);
+    }
 
     /// <summary>Routes messages on the current async flow to the simulator until disposed (used by the sample seeder).</summary>
     public static IDisposable Activate()
@@ -95,6 +117,12 @@ public sealed class NphiesSandboxTransport : INphiesTransport
                      ?? throw new InvalidOperationException("Request bundle has no MessageHeader.");
         var ctx = new Context(request, header);
 
+        // Eligibility, status-check and poll are real time only: NPHIES never stores their answers.
+        var queueable = request.EventCode is not (NphiesMessageEvents.EligibilityRequest or NphiesMessageEvents.StatusCheck or NphiesMessageEvents.PollRequest);
+        var key = ctx.ProviderLicense + "|" + header.Id;
+        if (queueable && _answered.TryGetValue(key, out var stored))
+            return Reply(DuplicateAnswer(ctx, key, stored));
+
         Bundle reply = request.EventCode switch
         {
             NphiesMessageEvents.EligibilityRequest => Eligibility(ctx, bundle),
@@ -104,8 +132,37 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             NphiesMessageEvents.PollRequest => Poll(ctx, bundle),
             _ => Message(ctx, NphiesMessageEvents.Acknowledgement, null, ctx.Header.Id),
         };
-        return System.Threading.Tasks.Task.FromResult(
-            new NphiesTransportResponse(HttpStatusCode.OK, Serializer.SerializeToString(reply), Endpoint, TimeSpan.FromMilliseconds(40)));
+
+        // Tell the provider when more messages are waiting in its queue, as NPHIES does.
+        if (Pending(ctx.ProviderLicense) > 0)
+            Tag(reply, NphiesMetaTags.QueuedMessages);
+
+        var json = Serializer.SerializeToString(reply);
+        if (queueable) _answered[key] = json;
+        return Reply(json);
+    }
+
+    private static Task<NphiesTransportResponse> Reply(string json) => System.Threading.Tasks.Task.FromResult(
+        new NphiesTransportResponse(HttpStatusCode.OK, json, Endpoint, TimeSpan.FromMilliseconds(40)));
+
+    /// <summary>
+    /// A message sent again with the same MessageHeader.id is a duplicate: NPHIES returns the latest response it has
+    /// stored. That is the final response once the provider has collected it by poll; until then it is the first
+    /// answer again ("queued").
+    /// </summary>
+    private string DuplicateAnswer(Context ctx, string key, string stored)
+    {
+        if (!_deferred.TryGetValue(key, out var final)) return stored;
+        var stillQueued = _queues.TryGetValue(ctx.ProviderLicense, out var queue) && queue.Contains(final);
+        return stillQueued ? stored : final;
+    }
+
+    private static void Tag(Bundle message, params string[] codes)
+    {
+        var header = message.Entry.Select(e => e.Resource).OfType<MessageHeader>().First();
+        header.Meta ??= new Meta();
+        foreach (var code in codes.Where(c => header.Meta.Tag.All(t => t.Code != c)))
+            header.Meta.Tag.Add(new Coding(NphiesCodeSystems.MetaTags, code));
     }
 
     // ============================== Eligibility ==============================
@@ -190,7 +247,12 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         var decision = Decide(claim);
         var responseEvent = claim.Use == ClaimUseCode.Preauthorization ? NphiesMessageEvents.PriorAuthResponse : NphiesMessageEvents.ClaimResponse;
 
-        if (decision != Decision.Queued)
+        // NPHIES answers for the payer when the claim is large or the payer is offline; the payer's answer comes by poll.
+        var largeClaim = claim.Item.Count > LargeClaimItemThreshold;
+        var payerOffline = ctx.PayerLicense != null && _offlinePayers.ContainsKey(ctx.PayerLicense);
+        var heldByNphies = largeClaim || payerOffline;
+
+        if (decision != Decision.Queued && !heldByNphies)
         {
             var final = BuildClaimResponse(claim, decision);
             EnqueueFollowUps(ctx, claim, final);
@@ -198,10 +260,17 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         }
 
         // NPHIES accepted the message but the payer adjudicates later: reply "queued" now, deliver via poll.
-        var deferred = BuildClaimResponse(claim, Hash(Key(claim)) % 3 == 0 ? Decision.Partial : Decision.Approved);
-        Enqueue(ctx.ProviderLicense, Message(ctx, responseEvent, deferred, ctx.Header.Id));
+        var deferredDecision = decision != Decision.Queued ? decision : Hash(Key(claim)) % 3 == 0 ? Decision.Partial : Decision.Approved;
+        var deferred = BuildClaimResponse(claim, deferredDecision);
+        var deferredMessage = Message(ctx, responseEvent, deferred, ctx.Header.Id);
+        _deferred[ctx.ProviderLicense + "|" + ctx.Header.Id] = Serializer.SerializeToString(deferredMessage);
+        Enqueue(ctx.ProviderLicense, deferredMessage);
         EnqueueFollowUps(ctx, claim, deferred);
-        return Message(ctx, responseEvent, BuildQueuedResponse(claim), ctx.Header.Id);
+
+        var queued = Message(ctx, responseEvent, BuildQueuedResponse(claim, heldByNphies), ctx.Header.Id, fromNphies: heldByNphies);
+        if (heldByNphies) Tag(queued, NphiesMetaTags.NphiesGenerated);
+        if (largeClaim) Tag(queued, NphiesMetaTags.LargeClaim);
+        return queued;
     }
 
     private Bundle Batch(Context ctx, Bundle request)
@@ -234,11 +303,13 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         };
     }
 
-    private static ClaimResponse BuildQueuedResponse(Claim claim)
+    private static ClaimResponse BuildQueuedResponse(Claim claim, bool heldByNphies = false)
     {
         var response = NewClaimResponse(claim, "queued");
         response.Outcome = ClaimProcessingCodes.Queued;
-        response.Disposition = "Message received; adjudication is in progress.";
+        response.Disposition = heldByNphies
+            ? "Message received by NPHIES and queued for the payer."
+            : "Message received; adjudication is in progress.";
         return response;
     }
 
@@ -493,7 +564,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     private void Enqueue(string providerLicense, Bundle message) =>
         _queues.GetOrAdd(providerLicense, _ => new ConcurrentQueue<string>()).Enqueue(Serializer.SerializeToString(message));
 
-    private static Bundle Message(Context ctx, string eventCode, Resource? focus, string? respondingTo)
+    private static Bundle Message(Context ctx, string eventCode, Resource? focus, string? respondingTo, bool fromNphies = false)
     {
         var header = new MessageHeader
         {
@@ -503,11 +574,11 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             Sender = new ResourceReference
             {
                 Type = "Organization",
-                Identifier = ctx.PayerLicense is null
+                Identifier = ctx.PayerLicense is null || fromNphies
                     ? new Identifier(NphiesIdentifierSystems.Nphies, NphiesIdentifierSystems.NphiesValue)
                     : new Identifier(NphiesIdentifierSystems.PayerLicense, ctx.PayerLicense),
             },
-            Source = new MessageHeader.MessageSourceComponent { Endpoint = ctx.PayerLicense is null ? NphiesIdentifierSystems.NphiesEndpoint : PayerBase },
+            Source = new MessageHeader.MessageSourceComponent { Endpoint = ctx.PayerLicense is null || fromNphies ? NphiesIdentifierSystems.NphiesEndpoint : PayerBase },
         };
         header.Destination.Add(new MessageHeader.MessageDestinationComponent
         {

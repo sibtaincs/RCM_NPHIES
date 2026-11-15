@@ -52,7 +52,7 @@ The legacy defects listed in the Phase 0 review (`PaymentCalculationEngine`, `Ou
    - There is no container image or infrastructure-as-code.
    - `ProductionBaseUrl` still points at the sandbox host.
    - The cache is in memory.
-   - The poll worker is not safe to run on several instances.
+   - The poll worker is safe on several instances (a database lease, `RcmWorkerLeases`), but an early poll requested by a `queued-messages` tag only wakes the instance that received the tag.
    - Documents are stored on the local filesystem.
 4. **Multi-hospital:** there is one client certificate and one provider licence per deployment.
 5. **HIS integration:** there is no inbound API or adapter, and no outbound notification to a hospital information system.

@@ -37,6 +37,21 @@ public class NphiesTransaction : BaseEntity
     public string? ErrorSummary { get; set; }
     public DateTime SentAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
+
+    /// <summary>
+    /// NphiesValidation | PayerBusinessError | Rejection (Error received by HCP guideline); null when the exchange succeeded.
+    /// </summary>
+    public string? ErrorKind { get; set; }
+    /// <summary>Header-level <c>adjudication-outcome</c>: approved | partial | rejected | pended | not-required.</summary>
+    public string? AdjudicationOutcome { get; set; }
+    /// <summary>Comma-separated <c>meta-tags</c> codes on the response (queued-messages, nphies-generated, large-claim).</summary>
+    public string? MetaTags { get; set; }
+    /// <summary>NPHIES, not the payer, answered (payer offline or slow, batch, large claim): the queue is NPHIES's.</summary>
+    public bool NphiesGenerated { get; set; }
+
+    /// <summary>How many times the identical message (same Bundle.id and MessageHeader.id) was sent again after a timeout or transport failure.</summary>
+    public int ResendCount { get; set; }
+    public DateTime? LastResentAt { get; set; }
 }
 
 /// <summary>
@@ -130,4 +145,50 @@ public class EligibilityCheck : BaseEntity
     public string? DiscoveredCoveragesJson { get; set; }
     public string? ErrorsJson { get; set; }
     public DateTime? RespondedAt { get; set; }
+}
+
+/// <summary>
+/// A database lease that lets exactly one API instance run a background job (the NPHIES poll worker) at a time.
+/// The holder renews it every cycle; another instance takes over only after it expires.
+/// </summary>
+public class RcmWorkerLease
+{
+    /// <summary>Job name, for example <c>nphies-poll</c>.</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Instance that holds the lease (machine, process id and a random suffix).</summary>
+    public string Owner { get; set; } = string.Empty;
+    public DateTime AcquiredAt { get; set; }
+    public DateTime ExpiresAt { get; set; }
+}
+
+/// <summary>
+/// A claim or prior authorization that has had no final response for too long. Flagged after
+/// <c>Rcm:StuckAfterDays</c> and escalated after <c>Rcm:StuckEscalateAfterDays</c> (30 by default), when NPHIES
+/// support must be contacted with the bundle ids (Claim Submission Guideline).
+/// </summary>
+public class RcmStuckRequest : BaseEntity
+{
+    public string ClaimId { get; set; } = string.Empty;
+    public string? ProviderId { get; set; }
+    public string? InsurerId { get; set; }
+    /// <summary>claim | preauthorization</summary>
+    public string? Use { get; set; }
+    /// <summary>The claim's NPHIES status when it was last scanned (Submitted | Queued | Pended | Timeout).</summary>
+    public string ClaimStatus { get; set; } = string.Empty;
+    /// <summary>When the request was sent; the waiting time counts from here.</summary>
+    public DateTime WaitingSince { get; set; }
+    /// <summary>The outbound transaction that carried the request.</summary>
+    public string? TransactionId { get; set; }
+    /// <summary>Bundle.id of the request: NPHIES support asks for it.</summary>
+    public string? BundleId { get; set; }
+    /// <summary>MessageHeader.id of the request.</summary>
+    public string? MessageId { get; set; }
+    public string? RequestIdentifier { get; set; }
+    /// <summary>NPHIES, not the payer, is holding the request (the answer carried <c>nphies-generated</c>).</summary>
+    public bool HeldByNphies { get; set; }
+    /// <summary>Flagged | Escalated | Resolved</summary>
+    public string Level { get; set; } = "Flagged";
+    public DateTime FlaggedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? EscalatedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
 }

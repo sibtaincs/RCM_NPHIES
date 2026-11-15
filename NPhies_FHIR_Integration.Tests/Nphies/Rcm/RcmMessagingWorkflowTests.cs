@@ -193,9 +193,12 @@ public class RcmMessagingWorkflowTests
             c.SubmittedAt = DateTime.UtcNow.AddHours(-1);
             return await db.SaveChangesAsync();
         });
-        _host.ReplyWith("12b - Poll Response (Do Not Process).json");
+        // 12b carries the queued-messages tag, so the service polls again; the queue is empty by then.
+        var page = DocsExamples.ReadJson("12b - Poll Response (Do Not Process).json");
+        var polls = 0;
+        _host.ReplyWith(r => polls++ == 0 ? page : RcmFixtures.Acknowledgement(r));
 
-        var first = await _host.RunAsync<IRcmPollService, PollRunResultDto>(s => s.PollOnceAsync(seed.Provider.Id));
+        var first =await _host.RunAsync<IRcmPollService, PollRunResultDto>(s => s.PollOnceAsync(seed.Provider.Id));
         CollectionAssert.AreEqual(Array.Empty<string>(), first.Errors);
         Assert.AreEqual("poll-request", _host.Transport.EventCodes.First());
         Assert.AreEqual(1, first.MessagesReceived);
@@ -203,6 +206,7 @@ public class RcmMessagingWorkflowTests
         CollectionAssert.Contains(first.ClaimIds, claim.Id);
         Assert.AreEqual(RcmClaimStatus.Approved, (await _host.GetClaimAsync(claim.Id)).NphiesStatus);
 
+        polls = 0;
         var second = await _host.RunAsync<IRcmPollService, PollRunResultDto>(s => s.PollOnceAsync(seed.Provider.Id));
         Assert.AreEqual(0, second.Processed);
         Assert.AreEqual(1, second.Duplicates);

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using NPhies_FHIR_Integration.Application.HealthChecks;
 using NPhies_FHIR_Integration.Application.Mapping;
 using NPhies_FHIR_Integration.Application.Nphies.Builders;
+using NPhies_FHIR_Integration.Application.Nphies.Constants;
 using NPhies_FHIR_Integration.Application.Nphies.Messaging;
 using NPhies_FHIR_Integration.Application.Nphies.Parsing;
 using NPhies_FHIR_Integration.Application.Nphies.Sandbox;
@@ -153,6 +154,13 @@ public class NphiesConfigurationValidator : IValidateOptions<NphiesConfiguration
             failures.Add($"Nphies base URL for environment '{options.Environment}' must be an absolute URL.");
         if (options.Timeout <= 0)
             failures.Add("Nphies:Timeout must be greater than 0.");
+        // NPHIES closes the connection after 60 seconds; waiting longer only delays the timeout recovery.
+        if (options.Timeout > NphiesLimits.SessionTimeoutSeconds)
+            failures.Add($"Nphies:Timeout must not exceed the NPHIES connection limit of {NphiesLimits.SessionTimeoutSeconds} seconds.");
+        if (options.MaxMessageSizeBytes is <= 0 or > NphiesLimits.MaxMessageSizeBytes)
+            failures.Add($"Nphies:MaxMessageSizeBytes must be between 1 and the NPHIES limit of {NphiesLimits.MaxMessageSizeBytes} bytes.");
+        if (options.BatchMaxClaims is <= 0 or > NphiesLimits.BatchMaxClaims)
+            failures.Add($"Nphies:BatchMaxClaims must be between 1 and the NPHIES limit of {NphiesLimits.BatchMaxClaims} claims.");
         if (options.RetryCount < 0)
             failures.Add("Nphies:RetryCount must be greater than or equal to 0.");
         if (options.Polling.IntervalSeconds <= 0)

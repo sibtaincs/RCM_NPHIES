@@ -40,7 +40,7 @@ type Mode = 'claim' | 'preauth';
 
 const CLAIM_TYPES = ['institutional', 'oral', 'pharmacy', 'professional', 'vision'];
 /** Mirrors RcmClaimStatus. */
-const NPHIES_STATUSES = ['Draft', 'Submitted', 'Queued', 'Pended', 'Approved', 'PartiallyApproved', 'Rejected', 'Error', 'ValidationFailed', 'Timeout', 'CancelRequested', 'Cancelled', 'Nullified', 'Paid', 'PartiallyPaid', 'Superseded'];
+const NPHIES_STATUSES = ['Draft', 'Submitted', 'Queued', 'Pended', 'Approved', 'PartiallyApproved', 'Rejected', 'NotRequired', 'Error', 'ValidationFailed', 'Timeout', 'CancelRequested', 'Cancelled', 'Nullified', 'Paid', 'PartiallyPaid', 'Superseded'];
 const CANCEL_REASONS = [
   { value: 'WI', label: 'WI - Wrong information' },
   { value: 'NP', label: 'NP - Service not performed' },

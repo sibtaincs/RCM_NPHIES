@@ -292,6 +292,8 @@ CI builds and tests, the repository is cleaned up, and the status is honest. See
 
 **Done when** sandbox tests cover a timeout followed by an exact resend, a duplicate returning the stored response, the large-claim tag, and a queued response with an NPHIES sender.
 
+**Status: implemented** on `phase-2/messaging-core`. The sandbox tests are in `NphiesSandboxTransportRulesTests`; the lease, stuck-request scan and limits are in `RcmWorkerLeaseAndStuckRequestTests`. Still open: a screen for `GET api/rcm/messages/stuck`, and waking the lease holder when another instance receives a `queued-messages` tag.
+
 ## Phase 3: front office: discovery and eligibility (track B2)
 | Item | Gap | Work |
 |---|---|---|

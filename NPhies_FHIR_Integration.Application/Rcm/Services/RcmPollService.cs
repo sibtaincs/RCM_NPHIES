@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NPhies_FHIR_Integration.Application.Nphies.Builders;
+using NPhies_FHIR_Integration.Application.Nphies.Constants;
 using NPhies_FHIR_Integration.Application.Nphies.Models;
 using NPhies_FHIR_Integration.Application.Rcm.Dtos;
 using NPhies_FHIR_Integration.Domain.Entities;
@@ -18,6 +19,12 @@ public interface IRcmPollService
     /// deferred message and acknowledges payment reconciliations with a payment-notice.
     /// </summary>
     Task<PollRunResultDto> PollOnceAsync(string? providerId = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Same as <see cref="PollOnceAsync"/> with filters: count, include or exclude message types, a period, or the
+    /// response to one claim (<see cref="PollRequestDto.FocusClaimId"/>; polls that provider once).
+    /// </summary>
+    Task<PollRunResultDto> PollAsync(PollRequestDto request, CancellationToken ct = default);
 }
 
 public sealed class RcmPollService : IRcmPollService
@@ -54,8 +61,40 @@ public sealed class RcmPollService : IRcmPollService
         _logger = logger;
     }
 
-    public async Task<PollRunResultDto> PollOnceAsync(string? providerId = null, CancellationToken ct = default)
+    public Task<PollRunResultDto> PollOnceAsync(string? providerId = null, CancellationToken ct = default) =>
+        PollAsync(new PollRequestDto { ProviderId = providerId }, ct);
+
+    public async Task<PollRunResultDto> PollAsync(PollRequestDto request, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.IncludeMessageTypes.Count > 0 && request.ExcludeMessageTypes.Count > 0)
+            throw RcmWorkflowException.Invalid("Use include message types or exclude message types, not both.");
+        if (request.Count is < 1 or > NphiesLimits.PollMaxMessages)
+            throw RcmWorkflowException.Invalid($"Count must be between 1 and {NphiesLimits.PollMaxMessages}.");
+        if (request.PeriodStart > request.PeriodEnd)
+            throw RcmWorkflowException.Invalid("The period start must not be after its end.");
+
+        var providerId = request.ProviderId;
+        NphiesIdentifier? focus = null;
+        if (!string.IsNullOrWhiteSpace(request.FocusClaimId))
+        {
+            var claim = await _db.Claims.AsNoTracking().FirstOrDefaultAsync(c => c.Id == request.FocusClaimId, ct)
+                        ?? throw RcmWorkflowException.NotFound("Claim", request.FocusClaimId!);
+            if (claim.SubmittedAt is null || string.IsNullOrWhiteSpace(claim.ClaimIdentifierValue))
+                throw RcmWorkflowException.Conflict("The claim has not been sent to NPHIES, so there is no response to poll for.");
+            if (!string.IsNullOrWhiteSpace(providerId) && claim.ProviderId != providerId)
+                throw RcmWorkflowException.NotFound("Claim", request.FocusClaimId!);
+            focus = new NphiesIdentifier(claim.ClaimIdentifierSystem ?? _mapper.IdentifierSystem("claim"), claim.ClaimIdentifierValue!);
+            providerId = claim.ProviderId;
+        }
+
+        var count = request.Count ?? (_nphies.PollMaxCount > 0 ? _nphies.PollMaxCount : (int?)null);
+        var period = request.PeriodStart is null && request.PeriodEnd is null ? null
+            : new NphiesPeriod(request.PeriodStart?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                               request.PeriodEnd?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        // A focused poll asks for one answer; the other filters page through the queue.
+        var maxPolls = focus is null ? Math.Max(1, _options.MaxPollsPerCycle) : 1;
+
         var result = new PollRunResultDto();
         var providers = await ResolveProvidersAsync(providerId, ct);
         if (providers.Count == 0)
@@ -66,7 +105,7 @@ public sealed class RcmPollService : IRcmPollService
 
         foreach (var (orgId, provider) in providers)
         {
-            for (var i = 0; i < Math.Max(1, _options.MaxPollsPerCycle); i++)
+            for (var i = 0; i < maxPolls; i++)
             {
                 ct.ThrowIfCancellationRequested();
                 var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
@@ -75,7 +114,11 @@ public sealed class RcmPollService : IRcmPollService
                     TaskId = Guid.NewGuid().ToString("N"),
                     Identifier = new NphiesIdentifier(_mapper.IdentifierSystem("task"), $"Poll_{stamp}"),
                     Provider = provider,
-                    Count = _nphies.PollMaxCount > 0 ? _nphies.PollMaxCount : null,
+                    Count = count,
+                    IncludeMessageTypes = request.IncludeMessageTypes.ToList(),
+                    ExcludeMessageTypes = request.ExcludeMessageTypes.ToList(),
+                    Period = period,
+                    Focus = focus,
                 };
                 var dispatch = await _dispatcher.DispatchAsync(new RcmDispatchRequest
                 {
@@ -103,7 +146,8 @@ public sealed class RcmPollService : IRcmPollService
                 await _db.SaveChangesAsync(ct);
                 Accumulate(result, ingest);
 
-                if (received < (input.Count ?? int.MaxValue) && input.Count.HasValue) break;
+                // Keep polling while the page was full or NPHIES says more messages are queued.
+                if (received < (input.Count ?? int.MaxValue) && input.Count.HasValue && !dispatch.Response.HasQueuedMessages) break;
             }
         }
 

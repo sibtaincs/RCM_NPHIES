@@ -204,6 +204,28 @@ export interface Transaction {
   errorSummary?: string | null;
   sentAt: string;
   completedAt?: string | null;
+  /** NphiesValidation | PayerBusinessError | Rejection; absent when the exchange succeeded. */
+  errorKind?: string | null;
+  adjudicationOutcome?: string | null;
+  metaTags?: string[];
+  nphiesGenerated?: boolean;
+  resendCount?: number;
+  lastResentAt?: string | null;
+}
+
+/** Result of sending the identical message of a transaction again. */
+export interface ResendResult {
+  transactionId: string;
+  operation: string;
+  messageId: string;
+  bundleId?: string | null;
+  resendCount: number;
+  transactionStatus: string;
+  errorKind?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  claimStatus?: string | null;
+  errors: string[];
 }
 
 export interface RelatedClaim {

@@ -421,6 +421,11 @@ public sealed class PollRequestInput : NphiesMessageInput
     /// <summary>Max messages to return (1-100).</summary>
     public int? Count { get; set; }
     public NphiesPeriod? Period { get; set; }
+    /// <summary>
+    /// Business identifier of one request (claim, prior authorization...) whose deferred response is wanted.
+    /// Sent as <c>Task.focus.identifier</c>.
+    /// </summary>
+    public NphiesIdentifier? Focus { get; set; }
 }
 
 public sealed class CommunicationPayloadInput

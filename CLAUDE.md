@@ -81,7 +81,7 @@ Workflow code must use these interfaces, never raw HTTP:
 
 1. Services load EF entities and map them through `RcmInputMapper` to builder inputs.
 2. `RcmMessageDispatcher` **persists an `NphiesTransaction` (Pending) before sending**, then records Completed, Queued, Error, ValidationFailed or Timeout.
-3. Every reply goes through the single idempotent **`RcmResponseIngestor`**, whether it arrives synchronously, through polling (`RcmPollService` and `ApiService/BackgroundServices/NphiesPollWorker`, enabled by `Rcm:PollWorkerEnabled`) or through `POST api/rcm/messages/inbound`.
+3. Every reply goes through the single idempotent **`RcmResponseIngestor`**, whether it arrives synchronously, through polling (`RcmPollService` and `ApiService/BackgroundServices/NphiesPollWorker`, on by default outside Development, `Rcm:PollWorkerEnabled` overrides; only the instance holding the database lease polls) or through `POST api/rcm/messages/inbound`.
    - Duplicates are detected by the inbound MessageHeader id.
    - Correlation to the request is by transaction or by request identifier.
 4. `Claim.NphiesStatus` moves through `RcmClaimStatus` in `Rcm/RcmOptions.cs`: Draft, then Submitted, Queued or Pended, then Approved, PartiallyApproved or Rejected, then Paid, PartiallyPaid or Recouped.

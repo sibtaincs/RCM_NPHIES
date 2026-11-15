@@ -128,6 +128,12 @@ public static class RcmProjections
         ErrorSummary = t.ErrorSummary,
         SentAt = t.SentAt,
         CompletedAt = t.CompletedAt,
+        ErrorKind = t.ErrorKind,
+        AdjudicationOutcome = t.AdjudicationOutcome,
+        MetaTags = string.IsNullOrWhiteSpace(t.MetaTags) ? new List<string>() : t.MetaTags.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
+        NphiesGenerated = t.NphiesGenerated,
+        ResendCount = t.ResendCount,
+        LastResentAt = t.LastResentAt,
     };
 
     public static DenialDto ToDto(ClaimDenial d, string? claimNumber = null, string? itemCode = null, string? insurerName = null) => new()

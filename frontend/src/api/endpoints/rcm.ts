@@ -29,6 +29,7 @@ import type {
   RcmDashboard,
   RcmPagedResult,
   RcmQuery,
+  ResendResult,
   SendCommunicationRequest,
   SubmissionResult,
   TaskResult,
@@ -102,6 +103,9 @@ export const rcmApi = {
   messages: {
     poll: (providerId?: string) =>
       post<PollRunResult>('/rcm/messages/poll', undefined, { providerId }),
+    /** Sends the identical message of a timed-out transaction again; NPHIES returns its stored response. */
+    resend: (transactionId: string) =>
+      post<ResendResult>(`/rcm/messages/${transactionId}/resend`),
   },
 
   communications: {
