@@ -18,6 +18,7 @@ import type {
   DerivedClaimRequest,
   EligibilityCheck,
   EligibilityCheckRequest,
+  OfflineEligibilityRequest,
   LinkPreAuthRequest,
   MessageJson,
   PayerBreakdown,
@@ -52,6 +53,9 @@ export const rcmApi = {
     list: (q: RcmQuery) => get<RcmPagedResult<EligibilityCheck>>('/rcm/eligibility', q),
     get: (id: string) => get<EligibilityCheck>(`/rcm/eligibility/${id}`),
     check: (body: EligibilityCheckRequest) => post<EligibilityCheck>('/rcm/eligibility', body),
+    latest: (patientId: string, insurerId?: string) => get<EligibilityCheck>(`/rcm/eligibility/patients/${patientId}/latest`, { insurerId }),
+    recordOffline: (body: OfflineEligibilityRequest) => post<EligibilityCheck>('/rcm/eligibility/offline', body),
+    applyToClaim: (id: string, claimId: string) => post<EligibilityCheck>(`/rcm/eligibility/${id}/apply-to-claim/${claimId}`),
   },
 
   claims: {

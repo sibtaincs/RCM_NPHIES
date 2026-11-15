@@ -306,6 +306,8 @@ CI builds and tests, the repository is cleaned up, and the status is honest. See
 
 **Done when** all Eligibility V4.0 test cases pass in the sandbox.
 
+**Status: partly implemented** on `phase-3/eligibility` (tests in `RcmEligibilityFrontOfficeTests`). Done: the three purposes, the site-eligibility reason, the claim-health warning `ELIGIBILITY_NOT_ELIGIBLE`, the 90-day newborn check, offline eligibility records (with a "Use latest" button in the claim editor), and advice for payer error codes. Still open: insurance discovery (the `check-insurance` response format is not in the repository), and running the Eligibility V4.0 test cases one by one in the sandbox.
+
 ## Phase 4: prior authorization lifecycle (track B3)
 | Item | Gap | Work |
 |---|---|---|

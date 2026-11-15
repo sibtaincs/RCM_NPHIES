@@ -430,7 +430,31 @@ export function ClaimEditorDrawer({
         <Select style={{ width: '100%' }} allowClear disabled={readOnly} value={d.accidentType ?? undefined} onChange={(v) => patch({ accidentType: v ?? null })} options={['MVA', 'SCHOOL', 'SPT', 'WPA'].map((v) => ({ value: v, label: v }))} />
       </Field>
       <Field label="Eligibility offline ref">
-        <Input disabled={readOnly} value={d.eligibilityOfflineReference ?? ''} onChange={(e) => patch({ eligibilityOfflineReference: e.target.value || null })} />
+        <Space.Compact style={{ width: '100%' }}>
+          <Input disabled={readOnly} value={d.eligibilityOfflineReference ?? ''} onChange={(e) => patch({ eligibilityOfflineReference: e.target.value || null })} placeholder="Reference from the payer portal or call" />
+          <Button
+            disabled={readOnly || !d.patientId}
+            title="Fill in the reference and date from the patient's latest offline eligibility record"
+            onClick={async () => {
+              try {
+                const latest = await rcmApi.eligibility.latest(d.patientId, d.insurerId || undefined);
+                if (!latest.isOffline || !latest.offlineReference) {
+                  void message.info('The latest eligibility check for this patient went through NPHIES, so no offline reference is needed.');
+                  return;
+                }
+                patch({ eligibilityOfflineReference: latest.offlineReference, eligibilityOfflineDate: latest.offlineDate ?? null });
+                void message.success(`Offline eligibility ${latest.offlineReference} applied`);
+              } catch {
+                void message.info('No eligibility record found for this patient. Record one on the Eligibility page first.');
+              }
+            }}
+          >
+            Use latest
+          </Button>
+        </Space.Compact>
+      </Field>
+      <Field label="Eligibility offline date">
+        <DateField disabled={readOnly} value={d.eligibilityOfflineDate} onChange={(v) => patch({ eligibilityOfflineDate: v })} />
       </Field>
       <Field label="Flags">
         <Space>

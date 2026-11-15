@@ -273,5 +273,48 @@ public static class RcmProjections
         Errors = Json(e.ErrorsJson),
         CreatedAt = e.CreatedAt,
         RespondedAt = e.RespondedAt,
+        SiteEligibilityReason = RcmEligibilityGuidance.SiteEligibilityReason(e.SiteEligibility),
+        ErrorExplanations = ExplainErrors(e.ErrorsJson),
+        IsOffline = e.IsOffline,
+        OfflineReference = e.OfflineReference,
+        OfflineDate = e.OfflineDate,
     };
+
+    /// <summary>
+    /// Reads the stored errors, which are either objects with a code and message or plain "code: message" strings,
+    /// and adds the advice for the payer codes that have any.
+    /// </summary>
+    public static List<EligibilityErrorDto> ExplainErrors(string? errorsJson)
+    {
+        var result = new List<EligibilityErrorDto>();
+        if (string.IsNullOrWhiteSpace(errorsJson)) return result;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(errorsJson);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array) return result;
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                string? code = null, message = null;
+                if (item.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    code = item.TryGetProperty("Code", out var c) && c.ValueKind == System.Text.Json.JsonValueKind.String ? c.GetString() : null;
+                    message = item.TryGetProperty("Message", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.String ? m.GetString() : null;
+                }
+                else if (item.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var text = item.GetString() ?? string.Empty;
+                    var split = text.IndexOf(": ", StringComparison.Ordinal);
+                    (code, message) = split > 0 && split <= 20 ? (text[..split], text[(split + 2)..]) : (null, text);
+                }
+                if (code is null && message is null) continue;
+                if (result.Any(r => r.Code == code && r.Message == message)) continue;
+                result.Add(new EligibilityErrorDto { Code = code, Message = message, Explanation = RcmEligibilityGuidance.PayerErrorExplanation(code) });
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Not JSON we wrote: leave the raw errors as they are.
+        }
+        return result;
+    }
 }

@@ -5017,6 +5017,9 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<bool>("IsNewborn")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsOffline")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsTransfer")
                         .HasColumnType("bit");
 
@@ -5027,6 +5030,13 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<string>("NotInForceReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("OfflineDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OfflineReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Outcome")
                         .HasMaxLength(30)

@@ -11,6 +11,15 @@ namespace NPhies_FHIR_Integration.Application.Rcm.Services;
 public interface IRcmEligibilityService
 {
     Task<EligibilityCheckDto> CheckAsync(EligibilityCheckRequestDto request, CancellationToken ct = default);
+    /// <summary>
+    /// Records eligibility confirmed on a payer portal or by phone. Nothing is sent to NPHIES; the reference and date
+    /// go on later claims and prior authorizations (<see cref="ApplyOfflineToClaimAsync"/>).
+    /// </summary>
+    Task<EligibilityCheckDto> RecordOfflineAsync(OfflineEligibilityRequestDto request, CancellationToken ct = default);
+
+    /// <summary>Copies an offline record's reference and date onto a claim or prior authorization that is not sent yet.</summary>
+    Task<EligibilityCheckDto> ApplyOfflineToClaimAsync(string checkId, string claimId, string? providerScope, CancellationToken ct = default);
+
     Task<EligibilityCheckDto?> GetAsync(string id, CancellationToken ct = default);
     Task<RcmPagedResult<EligibilityCheckDto>> ListAsync(RcmQuery query, CancellationToken ct = default);
     Task<EligibilityCheckDto?> GetLatestForPatientAsync(string patientId, string? insurerId, CancellationToken ct = default);
@@ -20,6 +29,9 @@ public interface IRcmEligibilityService
 public sealed class RcmEligibilityService : IRcmEligibilityService
 {
     private static readonly HashSet<string> AllowedPurposes = new(StringComparer.Ordinal) { "benefits", "validation", "discovery" };
+
+    /// <summary>A newborn may be checked against the mother's coverage for this many days after birth (IG 6.5).</summary>
+    public const int NewbornWindowDays = 90;
 
     private readonly ApplicationDbContext _db;
     private readonly IRcmInputMapper _mapper;
@@ -73,7 +85,19 @@ public sealed class RcmEligibilityService : IRcmEligibilityService
         }
 
         var serviced = (request.ServicedDate ?? DateTime.UtcNow).Date;
-        var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
+        if (request.IsNewborn)
+        {
+            // A newborn may use the mother's coverage for 90 days from birth; the payer rejects anything later.
+            var lastDay = (request.ServicedPeriodEnd ?? serviced).Date;
+            var limit = patient.DateOfBirth.Date.AddDays(NewbornWindowDays);
+            if (patient.DateOfBirth != default && lastDay > limit)
+                throw RcmWorkflowException.Invalid(
+                    $"The service date {lastDay:yyyy-MM-dd} is more than {NewbornWindowDays} days after the date of birth {patient.DateOfBirth:yyyy-MM-dd}. " +
+                    "The newborn can no longer use the mother's coverage; check eligibility with the baby's own policy.");
+            if (patient.DateOfBirth != default && lastDay < patient.DateOfBirth.Date)
+                throw RcmWorkflowException.Invalid("The service date is before the newborn's date of birth.");
+        }
+        var stamp =DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
         var check = new EligibilityCheck
         {
             PatientId = patient.Id,
@@ -141,6 +165,77 @@ public sealed class RcmEligibilityService : IRcmEligibilityService
         if (dispatch.Errors.Count > 0 && check.ErrorsJson is null)
             check.ErrorsJson = System.Text.Json.JsonSerializer.Serialize(dispatch.Errors);
         check.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return RcmProjections.ToDto(check);
+    }
+
+    public async Task<EligibilityCheckDto> RecordOfflineAsync(OfflineEligibilityRequestDto request, CancellationToken ct = default)
+    {
+        var reference = request.Reference?.Trim();
+        if (string.IsNullOrEmpty(reference)) throw RcmWorkflowException.Invalid("The reference the payer gave is required.");
+        if (reference.Length > 200) throw RcmWorkflowException.Invalid("The reference is too long (200 characters at most).");
+        if (request.Date == default) throw RcmWorkflowException.Invalid("The date the payer confirmed eligibility is required.");
+        if (request.Date > DateTime.UtcNow.AddDays(1)) throw RcmWorkflowException.Invalid("The offline eligibility date cannot be in the future.");
+
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == request.PatientId, ct) ?? throw RcmWorkflowException.NotFound("Patient", request.PatientId);
+        var provider = await _db.Organizations.FirstOrDefaultAsync(o => o.Id == request.ProviderId, ct) ?? throw RcmWorkflowException.NotFound("Provider", request.ProviderId);
+
+        Coverage? coverage;
+        if (!string.IsNullOrWhiteSpace(request.CoverageId))
+            coverage = await _db.Coverages.FirstOrDefaultAsync(c => c.Id == request.CoverageId, ct) ?? throw RcmWorkflowException.NotFound("Coverage", request.CoverageId!);
+        else
+            coverage = await _db.Coverages.Where(c => c.PatientId == patient.Id && c.Status == "active" && (request.InsurerId == null || c.InsurerId == request.InsurerId))
+                .OrderByDescending(c => c.CoverageEndDate).FirstOrDefaultAsync(ct);
+
+        var insurerId = coverage?.InsurerId ?? request.InsurerId;
+        if (string.IsNullOrWhiteSpace(insurerId)) throw RcmWorkflowException.Invalid("Pass coverageId or insurerId: the patient has no active coverage to take the insurer from.");
+        var insurer = await _db.Organizations.FirstOrDefaultAsync(o => o.Id == insurerId, ct) ?? throw RcmWorkflowException.NotFound("Insurer", insurerId!);
+
+        var check = new EligibilityCheck
+        {
+            PatientId = patient.Id,
+            CoverageId = coverage?.Id,
+            ProviderId = provider.Id,
+            InsurerId = insurer.Id,
+            Purposes = "validation",
+            ServicedDate = request.Date.Date,
+            RequestIdentifierSystem = _mapper.IdentifierSystem("coverageeligibilityrequest"),
+            RequestIdentifierValue = $"offline_{DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture)}",
+            Status = RcmTransactionStatus.Completed,
+            Outcome = "offline",
+            IsEligible = true,
+            Disposition = string.IsNullOrWhiteSpace(request.Notes) ? "Eligibility confirmed outside NPHIES." : request.Notes.Trim()[..Math.Min(request.Notes.Trim().Length, 1000)],
+            IsOffline = true,
+            OfflineReference = reference,
+            OfflineDate = request.Date,
+            RespondedAt = request.Date,
+        };
+        _db.EligibilityChecks.Add(check);
+        await _db.SaveChangesAsync(ct);
+        return RcmProjections.ToDto(check);
+    }
+
+    public async Task<EligibilityCheckDto> ApplyOfflineToClaimAsync(string checkId, string claimId, string? providerScope, CancellationToken ct = default)
+    {
+        var check = await _db.EligibilityChecks.AsNoTracking().FirstOrDefaultAsync(c => c.Id == checkId, ct);
+        if (check is null || (!string.IsNullOrWhiteSpace(providerScope) && check.ProviderId != providerScope))
+            throw RcmWorkflowException.NotFound("Eligibility check", checkId);
+        var claim = await _db.Claims.FirstOrDefaultAsync(c => c.Id == claimId, ct);
+        if (claim is null || (!string.IsNullOrWhiteSpace(providerScope) && claim.ProviderId != providerScope))
+            throw RcmWorkflowException.NotFound("Claim", claimId);
+
+        if (!check.IsOffline || string.IsNullOrWhiteSpace(check.OfflineReference))
+            throw RcmWorkflowException.Conflict("Only an offline eligibility record has a reference to put on a claim. A check made through NPHIES needs none.");
+        if (check.PatientId != claim.PatientId)
+            throw RcmWorkflowException.Conflict("The eligibility record is for a different patient.");
+        if (check.InsurerId != claim.InsurerId)
+            throw RcmWorkflowException.Conflict("The eligibility record is with a different insurer than the claim.");
+        if ((claim.NphiesStatus ?? RcmClaimStatus.Draft) is not (RcmClaimStatus.Draft or RcmClaimStatus.ValidationFailed))
+            throw RcmWorkflowException.Conflict($"The claim is {claim.NphiesStatus}: a sent claim cannot be changed.");
+
+        claim.EligibilityOfflineReference = check.OfflineReference;
+        claim.EligibilityOfflineDate = check.OfflineDate;
+        claim.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return RcmProjections.ToDto(check);
     }

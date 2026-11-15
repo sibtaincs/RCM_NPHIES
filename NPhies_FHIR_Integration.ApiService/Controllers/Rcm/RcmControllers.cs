@@ -19,6 +19,27 @@ public sealed class RcmEligibilityController : RcmControllerBase
     public async Task<ActionResult<EligibilityCheckDto>> Check([FromBody] EligibilityCheckRequestDto request, CancellationToken ct)
         => Ok(await _service.CheckAsync(request, ct));
 
+    /// <summary>
+    /// Records eligibility confirmed on a payer portal or by phone (reference and date). Nothing is sent to NPHIES.
+    /// </summary>
+    [HttpPost("offline")]
+    [HasPermission(Permissions.EligibilityCheck)]
+    public async Task<ActionResult<EligibilityCheckDto>> RecordOffline([FromBody] OfflineEligibilityRequestDto request, CancellationToken ct)
+    {
+        // Non-admin users record for their own hospital only.
+        if (ProviderScope() is { } scope) request.ProviderId = scope;
+        return Ok(await _service.RecordOfflineAsync(request, ct));
+    }
+
+    /// <summary>
+    /// Puts an offline eligibility record's reference and date on a claim or prior authorization that is not sent yet
+    /// (sent as <c>eligibility-offline-reference</c> and <c>eligibility-offline-date</c>).
+    /// </summary>
+    [HttpPost("{id}/apply-to-claim/{claimId}")]
+    [HasPermission(Permissions.ClaimsUpdate)]
+    public async Task<ActionResult<EligibilityCheckDto>> ApplyOfflineToClaim(string id, string claimId, CancellationToken ct)
+        => Ok(await _service.ApplyOfflineToClaimAsync(id, claimId, ProviderScope(), ct));
+
     [HttpGet]
     [HasPermission(Permissions.EligibilityRead)]
     public async Task<ActionResult<RcmPagedResult<EligibilityCheckDto>>> List([FromQuery] RcmQuery query, CancellationToken ct)

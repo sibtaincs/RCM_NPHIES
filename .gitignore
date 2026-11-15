@@ -24,3 +24,8 @@ frontend/.env
 # Tooling
 *.tsbuildinfo
 logs/
+
+# Local NPHIES reference material (read-only, not part of the repository) and editor settings
+/RCM/
+/nphies-fhir-docs-main/package/
+/.vscode/

@@ -74,6 +74,38 @@ public sealed class EligibilityCheckDto
     public object? Errors { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? RespondedAt { get; set; }
+    /// <summary>What <see cref="SiteEligibility"/> means for the visit, in plain language.</summary>
+    public string? SiteEligibilityReason { get; set; }
+    /// <summary>The errors with advice on what to do, for the payer codes that have any (1658 to 1682).</summary>
+    public List<EligibilityErrorDto> ErrorExplanations { get; set; } = new();
+    /// <summary>Confirmed on a payer portal or by phone; nothing was sent to NPHIES.</summary>
+    public bool IsOffline { get; set; }
+    public string? OfflineReference { get; set; }
+    public DateTime? OfflineDate { get; set; }
+}
+
+public sealed class EligibilityErrorDto
+{
+    public string? Code { get; set; }
+    public string? Message { get; set; }
+    /// <summary>What to do about it; null when the code has no specific advice.</summary>
+    public string? Explanation { get; set; }
+}
+
+/// <summary>An eligibility confirmation obtained outside NPHIES (payer portal or phone).</summary>
+public sealed class OfflineEligibilityRequestDto
+{
+    public string PatientId { get; set; } = string.Empty;
+    /// <summary>Defaults to the patient's active coverage.</summary>
+    public string? CoverageId { get; set; }
+    public string ProviderId { get; set; } = string.Empty;
+    /// <summary>Defaults to the coverage insurer.</summary>
+    public string? InsurerId { get; set; }
+    /// <summary>The reference the payer gave (portal reference or call reference).</summary>
+    public string Reference { get; set; } = string.Empty;
+    /// <summary>When the payer confirmed eligibility.</summary>
+    public DateTime Date { get; set; }
+    public string? Notes { get; set; }
 }
 
 // ===================== Claims / prior authorizations =====================

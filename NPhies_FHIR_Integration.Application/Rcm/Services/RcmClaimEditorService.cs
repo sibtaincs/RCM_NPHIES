@@ -557,7 +557,8 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         var claim = await LoadScopedAsync(claimId, providerScope, ct);
         var preAuths = await LoadPreAuthInfoAsync(new[] { claim }, ct);
         var sizes = await RcmDocumentService.LoadDocumentSizesAsync(_db, claim.SupportingInfo, ct);
-        return Evaluate(claim, preAuths, sizes, _documentOptions);
+        var eligibility = await LoadEligibilityInfoAsync(new[] { claim }, ct);
+        return Evaluate(claim, preAuths, sizes, _documentOptions, eligibility);
     }
 
     public async Task<List<ClaimHealthDto>> CheckHealthBulkAsync(RcmClaimQuery query, bool problemsOnly, CancellationToken ct = default)
@@ -577,11 +578,32 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         var claims = await q.OrderByDescending(c => c.CreatedDate).Take(Math.Clamp(query.Take, 1, 500)).ToListAsync(ct);
         var preAuths = await LoadPreAuthInfoAsync(claims, ct);
         var sizes = await RcmDocumentService.LoadDocumentSizesAsync(_db, claims.SelectMany(c => c.SupportingInfo), ct);
-        var results = claims.Select(c => Evaluate(c, preAuths, sizes, _documentOptions)).ToList();
+        var eligibility = await LoadEligibilityInfoAsync(claims, ct);
+        var results = claims.Select(c => Evaluate(c, preAuths, sizes, _documentOptions, eligibility)).ToList();
         return problemsOnly ? results.Where(r => r.Issues.Count > 0).ToList() : results;
     }
 
     private sealed record PreAuthInfo(string ClaimId, DateTime? PeriodEnd, decimal? Eligible, string? PatientId);
+
+    private sealed record EligibilityInfo(bool? IsEligible, string? SiteEligibility, string? Disposition, DateTime CheckedAt, bool IsOffline);
+
+    private static string EligibilityKey(string? patientId, string? insurerId) => $"{patientId}|{insurerId}";
+
+    /// <summary>The latest answered eligibility check (through NPHIES or recorded offline) for each claim's patient and insurer.</summary>
+    private async Task<Dictionary<string, EligibilityInfo>> LoadEligibilityInfoAsync(IReadOnlyCollection<Claim> claims, CancellationToken ct)
+    {
+        var patientIds = claims.Select(c => c.PatientId).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
+        if (patientIds.Count == 0) return new Dictionary<string, EligibilityInfo>();
+        var rows = await _db.EligibilityChecks.AsNoTracking()
+            .Where(e => patientIds.Contains(e.PatientId) && e.Status == RcmTransactionStatus.Completed)
+            .Select(e => new { e.PatientId, e.InsurerId, e.IsEligible, e.SiteEligibility, e.Disposition, e.CreatedAt, e.IsOffline })
+            .ToListAsync(ct);
+        return rows.GroupBy(r => EligibilityKey(r.PatientId, r.InsurerId)).ToDictionary(g => g.Key, g =>
+        {
+            var r = g.OrderByDescending(x => x.CreatedAt).First();
+            return new EligibilityInfo(r.IsEligible, r.SiteEligibility, r.Disposition, r.CreatedAt, r.IsOffline);
+        });
+    }
 
     private async Task<Dictionary<string, PreAuthInfo>> LoadPreAuthInfoAsync(IEnumerable<Claim> claims, CancellationToken ct)
     {
@@ -630,7 +652,8 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
     private static bool HasFile(ClaimSupportingInfo s) =>
         !string.IsNullOrWhiteSpace(s.DocumentId) || !string.IsNullOrWhiteSpace(s.AttachmentData) || !string.IsNullOrWhiteSpace(s.AttachmentUrl);
 
-    private static ClaimHealthDto Evaluate(Claim c, Dictionary<string, PreAuthInfo> preAuths, IReadOnlyDictionary<string, long> documentSizes, RcmDocumentOptions documentOptions)
+    private static ClaimHealthDto Evaluate(Claim c, Dictionary<string, PreAuthInfo> preAuths, IReadOnlyDictionary<string, long> documentSizes, RcmDocumentOptions documentOptions,
+        IReadOnlyDictionary<string, EligibilityInfo>? eligibility = null)
     {
         var h = new ClaimHealthDto { ClaimId = c.Id, ClaimNumber = c.ClaimNumber };
         void Add(string severity, string code, string? field, string message) =>
@@ -656,6 +679,14 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
             if (!active)
                 Add("Error", "COVERAGE_INACTIVE", "header.coverageId",
                     $"Coverage is not active on the service date {serviceDate:yyyy-MM-dd} (policy {c.Coverage.CoverageStartDate:yyyy-MM-dd} – {c.Coverage.CoverageEndDate:yyyy-MM-dd}, status {c.Coverage.Status}).");
+        }
+        // Warn before sending when the payer's latest eligibility answer for this patient was "not eligible".
+        if (eligibility != null && eligibility.TryGetValue(EligibilityKey(c.PatientId, c.InsurerId), out var elig) && elig.IsEligible == false)
+        {
+            var reason = RcmEligibilityGuidance.SiteEligibilityReason(elig.SiteEligibility) ?? elig.Disposition ?? "The payer did not confirm coverage.";
+            Add("Warning", "ELIGIBILITY_NOT_ELIGIBLE", "header.coverageId",
+                $"The last eligibility check ({elig.CheckedAt:yyyy-MM-dd}) said the patient is not eligible{(elig.SiteEligibility is null ? "" : $" ({elig.SiteEligibility})")}: {reason} " +
+                $"Run a new check before sending this {(preAuth ? "prior authorization" : "claim")}.");
         }
         if (c.Provider is null) Add("Error", "PROVIDER_MISSING", "header.providerId", "Provider is missing.");
         if (c.Insurer is null) Add("Error", "INSURER_MISSING", "header.insurerId", "Insurer is missing.");
