@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Drawer, Form, Input, List, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PhoneOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PhoneOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs, { type Dayjs } from 'dayjs';
 import { rcmApi } from '@/api/endpoints/rcm';
@@ -10,6 +10,7 @@ import { PERMISSIONS, usePermission } from '@/hooks/usePermission';
 import type { EligibilityCheck } from '@/types/rcm';
 import { fmtDate, statusTag } from '@/utils/display';
 import { CoverageSelect, InsurerSelect, PageHeader, PatientSelect, showError } from './shared';
+import { InsuranceDiscoveryModal } from './InsuranceDiscoveryModal';
 
 const PURPOSES = [
   { value: 'benefits', label: 'Benefits' },
@@ -70,6 +71,7 @@ export function EligibilityPage() {
   });
 
   const [offlineOpen, setOfflineOpen] = useState(false);
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [offlineForm] = Form.useForm();
   const offlinePatientId = Form.useWatch('patientId', offlineForm) as string | undefined;
 
@@ -142,6 +144,9 @@ export function EligibilityPage() {
               }}
             >
               Record offline
+            </Button>
+            <Button icon={<SearchOutlined />} disabled={!can(PERMISSIONS.EligibilityCheck)} onClick={() => setDiscoveryOpen(true)}>
+              Find insurance
             </Button>
             <Button icon={<ReloadOutlined />} onClick={() => void list.refetch()} />
           </Space>
@@ -253,6 +258,8 @@ export function EligibilityPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <InsuranceDiscoveryModal open={discoveryOpen} onClose={() => setDiscoveryOpen(false)} />
 
       <Drawer open={!!detail} width={720} title={detail ? `Eligibility ${detail.requestIdentifier}` : ''} onClose={() => setDetail(undefined)}>
         {detail && (

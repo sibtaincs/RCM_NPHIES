@@ -94,6 +94,7 @@ public static class RcmServiceCollectionExtensions
         services.AddScoped<IRcmResponseIngestor, RcmResponseIngestor>();
         services.AddScoped<IRcmInboundService, RcmInboundService>();
         services.AddScoped<IRcmEligibilityService, RcmEligibilityService>();
+        services.AddScoped<IRcmInsuranceDiscoveryService, RcmInsuranceDiscoveryService>();
         services.AddScoped<IRcmClaimWorkflowService, RcmClaimWorkflowService>();
         services.AddScoped<IRcmClaimEditorService, RcmClaimEditorService>();
         services.AddScoped<IRcmCommunicationService, RcmCommunicationService>();

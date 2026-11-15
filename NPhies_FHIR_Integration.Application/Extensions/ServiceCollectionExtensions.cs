@@ -102,6 +102,29 @@ public static class ServiceCollectionExtensions
             })
             .AddPolicyHandler(GetRetryPolicy);
 
+        // Check Insurance (beneficiary discovery): a REST GET on the same host, with the same client certificate.
+        services.Configure<Nphies.Discovery.NphiesDiscoveryOptions>(configuration.GetSection(Nphies.Discovery.NphiesDiscoveryOptions.SectionName));
+        services.AddHttpClient<Nphies.Discovery.INphiesInsuranceDiscoveryClient, Nphies.Discovery.NphiesInsuranceDiscoveryClient>(Nphies.Discovery.NphiesInsuranceDiscoveryClient.HttpClientName)
+            .ConfigureHttpClient(client =>
+            {
+                client.Timeout = Timeout.InfiniteTimeSpan;
+                client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("NPHIES-FHIR-Integration/1.0");
+            })
+            .ConfigurePrimaryHttpMessageHandler(sp =>
+            {
+                var handler = new SocketsHttpHandler
+                {
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+                    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+                };
+                handler.SslOptions.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+                var certificate = sp.GetRequiredService<INphiesCertificateProvider>().GetClientCertificate();
+                if (certificate != null)
+                    handler.SslOptions.ClientCertificates = new X509CertificateCollection { certificate };
+                return handler;
+            });
+
         return services;
     }
 

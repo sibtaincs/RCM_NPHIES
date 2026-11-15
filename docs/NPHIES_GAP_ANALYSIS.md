@@ -179,7 +179,7 @@ The original finding:
 
 Not verified in the code; check during the G4 work.
 
-**G15. Insurance discovery (HIDP API)** (IG section 6.6). Lists the insurers holding a policy for a patient. It's a separate API with its own guideline, which isn't in the repository, and nothing implements it.
+**G15. Insurance discovery (HIDP API)** (IG section 6.6). Lists the insurers holding a policy for a patient. **Implemented** as a REST client (`Application/Nphies/Discovery`) with `POST api/rcm/eligibility/insurance-discovery`. Not yet tried against the OBA environment: the guide does not give the JSON envelope or the authorization header format.
 
 **G16. Queue polling in production.** The IG (section 6.3.6) expects providers to poll the queue daily and periodically, with manual polling for urgent prior authorizations.
 - **Done in Phase 2.** The poll worker runs by default outside Development (`Rcm:PollWorkerEnabled` overrides), every `PollIntervalSeconds` in working hours and every `OffHoursPollIntervalSeconds` otherwise, never less often than daily.
