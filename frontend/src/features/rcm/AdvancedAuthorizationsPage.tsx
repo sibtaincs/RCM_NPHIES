@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Popconfirm, Select, Space, Table, Tag, message } from 'antd';
+import { Button, Card, Input, Modal, Popconfirm, Select, Space, Table, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined } from '@ant-design/icons';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +23,8 @@ export function AdvancedAuthorizationsPage() {
   const [pageSize, setPageSize] = useState(25);
   const [status, setStatus] = useState<string>();
   const [draftId, setDraftId] = useState<string>();
+  const [messageFor, setMessageFor] = useState<AdvancedAuthorization>();
+  const [messageText, setMessageText] = useState('');
 
   const q = { ...global.rcm, status, page, pageSize };
   const list = useQuery({ queryKey: ['rcm', 'advanced-authorizations', q], queryFn: () => rcmApi.advancedAuthorizations.list(q), placeholderData: keepPreviousData });
@@ -45,6 +47,16 @@ export function AdvancedAuthorizationsPage() {
       setDraftId(r.claimId);
     },
     onError: (e) => showError('Could not start the change', e),
+  });
+
+  const sendMessage = useMutation({
+    mutationFn: () => rcmApi.communications.send({ advancedAuthorizationId: messageFor!.id, texts: [messageText.trim()], attachments: [] }),
+    onSuccess: () => {
+      void message.success('Message sent to the payer');
+      setMessageFor(undefined);
+      setMessageText('');
+    },
+    onError: (e) => showError('Could not send the message', e),
   });
 
   const columns: ColumnsType<AdvancedAuthorization> = [
@@ -72,6 +84,9 @@ export function AdvancedAuthorizationsPage() {
           <Space>
             <Button size="small" disabled={!can(PERMISSIONS.PreAuthCreate)} loading={amend.isPending && amend.variables === r.id} onClick={() => amend.mutate(r.id)}>
               Change
+            </Button>
+            <Button size="small" disabled={!can(PERMISSIONS.ClaimsUpdate)} onClick={() => setMessageFor(r)}>
+              Message payer
             </Button>
             <Popconfirm title="Ask the payer to cancel this authorization?" okText="Send cancel request" onConfirm={() => cancel.mutate(r.id)}>
               <Button size="small" danger disabled={!can(PERMISSIONS.PreAuthSubmit)} loading={cancel.isPending && cancel.variables === r.id}>
@@ -110,6 +125,17 @@ export function AdvancedAuthorizationsPage() {
           }}
         />
       </Card>
+      <Modal
+        open={!!messageFor}
+        title={`Message the payer about authorization ${messageFor?.preAuthRef ?? ''}`}
+        okText="Send"
+        okButtonProps={{ loading: sendMessage.isPending, disabled: !messageText.trim() }}
+        onCancel={() => setMessageFor(undefined)}
+        onOk={() => sendMessage.mutate()}
+        destroyOnClose
+      >
+        <Input.TextArea rows={4} value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="For example: please extend the authorization period, or add a service." />
+      </Modal>
       {draftId && <ClaimEditorDrawer claimId={draftId} use="preauthorization" onClose={() => setDraftId(undefined)} />}
     </>
   );

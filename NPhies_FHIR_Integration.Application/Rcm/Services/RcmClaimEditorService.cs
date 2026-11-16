@@ -848,6 +848,23 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
                 Add("Warning", "PREAUTH_EXCEEDED", "header.preAuthorizationRef", $"Claimed amount {gross:0.00} (before VAT) exceeds the pre-authorized amount {eligible:0.00}.");
         }
 
+        // Transfer of care (IG 7.3): the receiving provider bills with the transfer authorization number as the preAuthRef
+        // and the date it was given, because the authorization was issued to the referring provider.
+        var referralVisit = c.SupportingInfo.Any(s => string.Equals(s.Category, "reason-for-visit", StringComparison.OrdinalIgnoreCase)
+                                                      && string.Equals(s.CodeValue, "referral", StringComparison.OrdinalIgnoreCase));
+        if (referralVisit && !preAuth)
+        {
+            if (string.IsNullOrWhiteSpace(c.PreAuthorizationRef))
+                Add("Warning", "TRANSFER_PREAUTH_MISSING", "header.preAuthorizationRef",
+                    "This visit is a referral: enter the transfer authorization number from the referring provider as the pre-authorization reference.");
+            if (c.AuthorizationOfflineDate is null)
+                Add("Warning", "TRANSFER_DATE_MISSING", "header.authorizationOfflineDate",
+                    "This visit is a referral: enter the date of the transfer authorization as the offline authorization date.");
+        }
+        if (referralVisit && preAuth && string.IsNullOrWhiteSpace(c.ReferralIdentifier))
+            Add("Warning", "TRANSFER_REFERRAL_MISSING", "header.referral",
+                "This prior authorization extends a referral: enter who referred the patient (the referring provider) as the referral.");
+
         if (!preAuth && c.IsShadowBilling && c.Items.Any(i => string.IsNullOrWhiteSpace(i.AltProductOrServiceCode)))
             Add("Info", "SHADOW_CODE", "items", "Shadow billing claim has items without the provider's internal code.");
 

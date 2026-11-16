@@ -243,6 +243,7 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
         var clone = await CloneAsync(source, "U", relationship: "prior", useOverride: null, ct,
             relateTo: await FindChainRootAsync(source, ct), skipItemSequences: request.RemoveItemSequences);
         clone.PreAuthorizationRef = await ChainPreAuthRefAsync(source, ct);
+        ApplyItemSplits(clone, source, request);
         ApplyPeriod(clone, request.NewPeriodEnd);
         return await FinishDerivedAsync(clone, request, ct);
     }
@@ -256,6 +257,7 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
         var clone = await CloneAsync(source, "E", relationship: "extend", useOverride: null, ct,
             relateTo: await FindChainRootAsync(source, ct), skipItemSequences: request.RemoveItemSequences);
         clone.PreAuthorizationRef = await ChainPreAuthRefAsync(source, ct);
+        ApplyItemSplits(clone, source, request);
         ApplyPeriod(clone, request.NewPeriodEnd);
         return await FinishDerivedAsync(clone, request, ct);
     }
@@ -367,6 +369,52 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
         throw RcmWorkflowException.Conflict(
             $"The prior authorization is {source.NphiesStatus ?? RcmClaimStatus.Draft}: the payer has not adjudicated it yet. " +
             "Cancel it and send a new prior authorization with only the items needed.");
+    }
+
+    /// <summary>
+    /// Changes an item that was only partly done (IG, changing an approved authorization): the item keeps the quantity
+    /// already done, with its service date and approval untouched, and a new item is added for the rest. Amounts are
+    /// divided in proportion to the quantities.
+    /// </summary>
+    private void ApplyItemSplits(Claim clone, Claim source, DerivedClaimRequestDto request)
+    {
+        if (request.SplitItems.Count == 0) return;
+        var items = _db.ClaimItems.Local.Where(i => i.ClaimId == clone.Id).ToList();
+        var nextSequence = items.Max(i => i.Sequence) + 1;
+        foreach (var split in request.SplitItems)
+        {
+            var item = items.FirstOrDefault(i => i.Sequence == split.Sequence)
+                       ?? throw RcmWorkflowException.Invalid($"There is no item with sequence {split.Sequence} to split.");
+            var quantity = item.Quantity ?? 1m;
+            if (split.DoneQuantity <= 0 || split.DoneQuantity >= quantity)
+                throw RcmWorkflowException.Invalid(
+                    $"Item {split.Sequence} has quantity {quantity:0.##}: the quantity done must be more than 0 and less than that. " +
+                    "If nothing was done, remove the item; if all of it was done, there is nothing to split.");
+            if (source.Items.First(i => i.Sequence == split.Sequence).Details.Count > 0)
+                throw RcmWorkflowException.Conflict($"Item {split.Sequence} has detail lines. Create the new version as a draft and split it in the claim editor.");
+
+            var share = split.DoneQuantity / quantity;
+            decimal? Done(decimal? amount) => amount.HasValue ? Math.Round(amount.Value * share, 2) : null;
+
+            var rest = (ClaimItem)_db.Entry(item).CurrentValues.ToObject();
+            rest.Id = Guid.NewGuid().ToString();
+            rest.Sequence = nextSequence++;
+            rest.CreatedAt = DateTime.UtcNow;
+            rest.Quantity = quantity - split.DoneQuantity;
+            // The remainder is still planned: it has no service date of its own yet.
+            rest.ServicedDate = split.RemainderServicedDate;
+            rest.ServicedPeriodStart = null;
+            rest.ServicedPeriodEnd = null;
+            rest.Net = item.Net - Done(item.Net);
+            rest.PatientShare = item.PatientShare - Done(item.PatientShare);
+            rest.Tax = item.Tax - Done(item.Tax);
+            _db.ClaimItems.Add(rest);
+
+            item.Quantity = split.DoneQuantity;
+            item.Net = Done(item.Net);
+            item.PatientShare = Done(item.PatientShare);
+            item.Tax = Done(item.Tax);
+        }
     }
 
     private static void ApplyPeriod(Claim clone, DateTime? newEnd)

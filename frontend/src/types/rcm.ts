@@ -157,6 +157,8 @@ export interface DerivedClaimRequest {
   newPeriodEnd?: string;
   /** Prior authorization update or extension: item sequences to leave out (adjudicated authorizations only). */
   removeItemSequences?: number[];
+  /** Items only partly done: each keeps the done quantity and the rest becomes a new item. */
+  splitItems?: { sequence: number; doneQuantity: number; remainderServicedDate?: string }[];
 }
 
 export interface LinkPreAuthRequest {
@@ -323,6 +325,8 @@ export interface Attachment {
 
 export interface SendCommunicationRequest {
   claimId?: string;
+  /** An advanced authorization to write about instead of a claim. */
+  advancedAuthorizationId?: string;
   texts: string[];
   attachments: Attachment[];
   category?: string;

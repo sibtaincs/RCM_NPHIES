@@ -260,6 +260,36 @@ public class RcmRecoupmentAndAdvancedAuthTests
         Assert.AreEqual("J45.909", claim.Diagnoses.First().DiagnosisCode);
     }
 
+    [TestMethod]
+    public async Task A_communication_can_ask_the_payer_to_change_an_advanced_authorization()
+    {
+        await _host.SeedPartiesAsync();
+        var id = await IngestAsync(BuildAdvancedAuthorization());
+        _host.ReplyWith(RcmFixtures.Acknowledgement);
+
+        var sent = await _host.RunAsync<IRcmCommunicationService, CommunicationDto>(s => s.SendAsync(new SendCommunicationDto
+        {
+            AdvancedAuthorizationId = id,
+            Texts = { "Please extend the authorization period by 30 days." },
+        }));
+
+        CollectionAssert.AreEqual(Array.Empty<string>(), sent.Errors);
+        Assert.AreEqual("communication", _host.Transport.EventCodes.Last());
+        var about = JsonNode.Parse(_host.Transport.Requests.Last().Json)!["entry"]!.AsArray()
+            .Select(e => e!["resource"]!).First(r => (string?)r["resourceType"] == "Communication")["about"]![0]!;
+        Assert.AreEqual("ClaimResponse", (string?)about["type"], "The communication is about the authorization, not a claim.");
+        Assert.AreEqual("aa_resp_1", (string?)about["identifier"]!["value"]);
+        Assert.IsNull(sent.ClaimId);
+
+        await _host.QueryAsync(async db =>
+        {
+            (await db.AdvancedAuthorizations.SingleAsync(a => a.Id == id)).Status = "Cancelled";
+            return await db.SaveChangesAsync();
+        });
+        await Assert.ThrowsExceptionAsync<RcmWorkflowException>(() => _host.RunAsync<IRcmCommunicationService, CommunicationDto>(s =>
+            s.SendAsync(new SendCommunicationDto { AdvancedAuthorizationId = id, Texts = { "Again" } })), "Nothing to change on a cancelled authorization.");
+    }
+
     private static string BuildAdvancedAuthorization()
     {
         var b = JsonNode.Parse(DocsExamples.ReadJson("7b - Claim Response.json"))!;

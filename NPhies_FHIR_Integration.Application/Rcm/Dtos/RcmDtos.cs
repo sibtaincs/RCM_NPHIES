@@ -261,6 +261,20 @@ public sealed class DerivedClaimRequestDto
     /// payer has adjudicated; a pending request is cancelled and sent again instead.
     /// </summary>
     public List<int> RemoveItemSequences { get; set; } = new();
+    /// <summary>
+    /// Prior authorization update or extension: items that were only partly done. Each keeps the quantity done and a new
+    /// item is added for the rest.
+    /// </summary>
+    public List<SplitItemDto> SplitItems { get; set; } = new();
+}
+
+public sealed class SplitItemDto
+{
+    public int Sequence { get; set; }
+    /// <summary>The quantity already done: more than 0 and less than the item's quantity.</summary>
+    public decimal DoneQuantity { get; set; }
+    /// <summary>When the rest is planned for, if known.</summary>
+    public DateTime? RemainderServicedDate { get; set; }
 }
 
 public sealed class LinkPreAuthDto
@@ -586,6 +600,10 @@ public sealed class AttachmentDto
 
 public sealed class SendCommunicationDto
 {
+    /// <summary>
+    /// An advanced authorization to write about instead of a claim, for example to ask the payer to change or extend it.
+    /// </summary>
+    public string? AdvancedAuthorizationId { get; set; }
     /// <summary>Claim (or prior auth) the communication is about. Required for unsolicited communications.</summary>
     public string? ClaimId { get; set; }
     public List<string> Texts { get; set; } = new();

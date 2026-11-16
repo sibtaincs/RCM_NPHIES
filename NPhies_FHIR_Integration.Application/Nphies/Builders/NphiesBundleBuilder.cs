@@ -206,7 +206,7 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
             Category = { Concept(NphiesCodeSystems.CommunicationCategory, input.Category) },
             Priority = ParseEnum<RequestPriority>(input.Priority),
             Subject = Ref(patient),
-            About = { TypedRef("Claim", input.AboutClaim) },
+            About = { TypedRef(string.IsNullOrWhiteSpace(input.AboutResourceType) ? "Claim" : input.AboutResourceType, input.AboutClaim) },
             Recipient = { Ref(insurer) },
             Sender = Ref(provider),
         };
@@ -408,6 +408,8 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
         // Links to the responses this request relies on, by their business identifiers (the responses are not in this bundle).
         if (input.EligibilityResponse != null)
             claim.Extension.Add(new Extension(NphiesExtensions.EligibilityResponse, new ResourceReference { Identifier = Identifier(input.EligibilityResponse) }));
+        if (input.Referral != null)
+            claim.Referral = new ResourceReference { Identifier = Identifier(input.Referral), Display = input.ReferralDisplay };
         if (input.PriorAuthResponse != null)
             claim.Extension.Add(new Extension(NphiesExtensions.PriorAuthResponse, new ResourceReference { Identifier = Identifier(input.PriorAuthResponse) }));
         if (input.Episode != null)

@@ -102,6 +102,39 @@ public class RcmPriorAuthLifecycleTests
     }
 
     [TestMethod]
+    public async Task A_partly_done_item_keeps_the_done_quantity_and_the_rest_becomes_a_new_item()
+    {
+        var (_, a) = await ApprovedPreAuthAsync();
+        await _host.QueryAsync(async db =>
+        {
+            var item = await db.ClaimItems.SingleAsync(i => i.ClaimId == a && i.Sequence == 2);
+            item.Quantity = 4;
+            item.UnitPrice = 86.25m; // net 345 for 4 sessions
+            return await db.SaveChangesAsync();
+        });
+        _host.ReplyWith(RcmFixtures.Acknowledgement);
+
+        foreach (var bad in new[] { 0m, 4m, 5m })
+            await Assert.ThrowsExceptionAsync<RcmWorkflowException>(() => UpdateAsync(a, new DerivedClaimRequestDto { SplitItems = { new SplitItemDto { Sequence = 2, DoneQuantity = bad } } }));
+
+        var b = await UpdateAsync(a, new DerivedClaimRequestDto { SplitItems = { new SplitItemDto { Sequence = 2, DoneQuantity = 1 } } });
+
+        var items = await _host.QueryAsync(db => db.ClaimItems.AsNoTracking().Where(i => i.ClaimId == b.ClaimId).OrderBy(i => i.Sequence).ToListAsync());
+        Assert.AreEqual(4, items.Count, "The remainder is a new item.");
+        var done = items.Single(i => i.Sequence == 2);
+        var rest = items.Single(i => i.Sequence == 4);
+        Assert.AreEqual(1m, done.Quantity);
+        Assert.AreEqual(86.25m, done.Net);
+        Assert.IsNotNull(done.ServicedDate, "The part already done keeps its service date.");
+        Assert.AreEqual(3m, rest.Quantity);
+        Assert.AreEqual(258.75m, rest.Net);
+        Assert.IsNull(rest.ServicedDate, "The rest is still planned.");
+        Assert.AreEqual(done.ProductOrServiceCode, rest.ProductOrServiceCode);
+        Assert.AreEqual(2070m, items.Sum(i => i.Net), "Nothing is added or lost.");
+        Assert.AreEqual(4, SentClaim().Item.Count);
+    }
+
+    [TestMethod]
     public async Task An_expired_authorization_cannot_be_cancelled()
     {
         var (_, a) = await ApprovedPreAuthAsync(); // 2b grants the authorization until 2021
@@ -159,6 +192,44 @@ public class RcmPriorAuthLifecycleTests
         var sent = SentClaim();
         Assert.AreEqual("PORTAL-1", (sent.GetExtension(NphiesExtensions.EligibilityOfflineReference)?.Value as FhirString)?.Value);
         Assert.IsNull(sent.GetExtension(NphiesExtensions.EligibilityResponse));
+    }
+
+    [TestMethod]
+    public async Task The_receiving_provider_of_a_transfer_is_warned_until_the_claim_carries_the_transfer_authorization()
+    {
+        var seed = await _host.SeedPartiesAsync();
+        var claim = await _host.SeedClaimAsync(seed, "req_299060");
+        Task<List<string>> WarningsAsync() => _host.RunAsync<IRcmClaimEditorService, ClaimHealthDto>(s => s.CheckHealthAsync(claim.Id, null))
+            .ContinueWith(t => t.Result.Issues.Where(i => i.Code.StartsWith("TRANSFER_")).Select(i => i.Code).ToList());
+        Assert.AreEqual(0, (await WarningsAsync()).Count, "An ordinary visit needs no transfer details.");
+
+        await _host.QueryAsync(async db =>
+        {
+            db.Add(new NPhies_FHIR_Integration.Domain.Entities.ClaimSupportingInfo
+            {
+                ClaimId = claim.Id, Sequence = 1, Category = "reason-for-visit", CodeValue = "referral",
+                CodeSystem = NphiesCodeSystems.VisitReason,
+            });
+            return await db.SaveChangesAsync();
+        });
+        CollectionAssert.AreEquivalent(new[] { "TRANSFER_PREAUTH_MISSING", "TRANSFER_DATE_MISSING" }, await WarningsAsync());
+
+        await _host.QueryAsync(async db =>
+        {
+            var c = await db.Claims.SingleAsync(x => x.Id == claim.Id);
+            c.PreAuthorizationRef = "TRF-778899";
+            c.AuthorizationOfflineDate = DateTime.UtcNow.Date;
+            c.ReferralIdentifier = "Referring Hospital";
+            return await db.SaveChangesAsync();
+        });
+        Assert.AreEqual(0, (await WarningsAsync()).Count);
+
+        _host.ReplyWith("7b - Claim Response.json");
+        await _host.RunAsync<IRcmClaimWorkflowService, SubmissionResultDto>(s => s.SubmitAsync(claim.Id));
+        var sent = SentClaim();
+        Assert.AreEqual("Referring Hospital", sent.Referral?.Display, "Who referred the patient is sent as Claim.referral.");
+        CollectionAssert.AreEqual(new[] { "TRF-778899" }, sent.Insurance.Single().PreAuthRef.ToList());
+        Assert.IsNotNull(sent.GetExtension(NphiesExtensions.AuthorizationOfflineDate));
     }
 
     [TestMethod]

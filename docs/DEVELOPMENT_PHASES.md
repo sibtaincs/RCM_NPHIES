@@ -323,7 +323,8 @@ CI builds and tests, the repository is cleaned up, and the status is honest. See
 
 **Status: partly implemented** on `phase-4/prior-authorization` (tests in `RcmPriorAuthLifecycleTests` and `RcmRecoupmentAndAdvancedAuthTests`).
 - Done: the eligibility and prior-auth response links (G3), with the latest eligible check linked automatically (`Rcm:EligibilityLinkMaxAgeDays`); new versions always related to the first request and keeping the preAuthRef; removing items from an adjudicated authorization (`removeItemSequences`); no cancel of an expired authorization; the transfer authorization number, period and provider stored from the response (G9); APA reissue (`cancel` withdraws, other reasons replace), provider cancel and "amend from APA" (G4, G14); an Advanced authorizations screen.
-- Still open: the partial-quantity split of an item; the receiving provider's claim and extension for a transfer (`reason-for-visit = referral`, `referral.display`, `authorizationOffLineDate`); a communication about an APA; a picker for the eligibility check and for items to remove in the screens; and walking through the Authorization V6.0 test cases.
+- Also done (second part): splitting a partly done item (`splitItems`); `Claim.referral` sent from the claim's referral field, with claim-health warnings until a referral visit carries the transfer authorization number and date; a communication about an APA (`advancedAuthorizationId`, with a "Message payer" action).
+- Still open: pickers in the claims screen for the eligibility check, the items to remove and the items to split (the API takes them); and walking through the Authorization V6.0 test cases.
 
 ## Phase 5: claims (track B4)
 | Item | Gap | Work |
