@@ -108,7 +108,7 @@ The original finding:
 **G3. Claim references to earlier responses.**
 - The IG claim profiles define `Claim.extension:eligibilityResponse` (`extension-eligibility-response`) and `Claim.extension:priorauthResponse` (`extension-priorauthresponse`). The builder supports only the offline references (`eligibilityOffLine`, `eligibilityOffLineDate`, `authorizationOffLineDate`).
 - Add both references to the builder inputs and the mapper. Let the claim editor pick a stored eligibility response, and set the prior-auth response automatically when a claim is created from, or linked to, a prior authorization.
-- Blocks Authorization #2 and Claims #1, #2 and #8.
+- **Done in Phase 4:** both references are sent (`RcmInputMapper.LinkResponsesAsync`). The eligibility link is automatic (latest eligible check); the editor has no picker yet.
 
 **G4. Advanced authorization (APA) lifecycle.**
 - The IG (section 7.9.2) says the payer cancels an APA by sending another response with the **same preAuthRef** and `reissue-reason = cancel`. `RcmResponseIngestor.IngestAdvancedAuthorizationAsync` does neither of the right things:
@@ -117,7 +117,7 @@ The original finding:
   - The reissue reason is never read, and the earlier APA is never marked as overridden.
 - The provider can also cancel an APA with a `cancel-request` (Task focus = APA identifier). There is no API for that; `api/rcm/advanced-authorizations` only has list, get and `use`.
 - The poll service only sends unfiltered polls. Test case #10 asks for a poll that includes only `advanced-authorization`. The builder already supports the filters (`PollRequestInput.IncludeMessageTypes`, `ExcludeMessageTypes`, `Period`, `Count`), but `RcmPollService` and `POST api/rcm/messages/poll` don't expose them.
-- Blocks Authorization #10.
+- **Done in Phase 4:** reissue handling in the ingestor, `POST api/rcm/advanced-authorizations/{id}/cancel`, and poll filters (Phase 2).
 
 **G5. Mandatory `episode` and `patientInvoice`.** *Fixed:*
 - When empty, `ep_<ClaimNumber>` and `inv_<ClaimNumber>` are sent and stored on the claim, and clones keep the original episode.
@@ -154,7 +154,7 @@ The original finding:
   - the exact resend that the IG recommends isn't offered, even though the raw request is already stored in `NphiesMessageLogs`.
 - Add a "resend identical message" action that replays the stored request body, and let eligibility and status checks simply be sent again.
 
-**G9. Transfer (referral) response details.** For a referral prior authorization, the payer's response carries `transferAuthorizationProvider`, `transferAuthorizationPeriod` and `transferAuthorizationNumber` (IG section 7.3). The constants exist, but the parser and ingestor never read them, so the second provider's name, the period and the authorization number are lost.
+**G9. Transfer (referral) response details.** For a referral prior authorization, the payer's response carries `transferAuthorizationProvider`, `transferAuthorizationPeriod` and `transferAuthorizationNumber` (IG section 7.3). **Done in Phase 4:** they are parsed and stored on `ClaimResponses`.
 
 **G10. Missing supporting-info categories.**
 - CodeableConcept V5.3 lists 30 `claim-information-category` codes. These 4 are not supported anywhere in the backend or frontend: `hospitalized`, `morphology`, `admission-weight` and `estimated-Length-of-Stay`.
@@ -177,7 +177,7 @@ The original finding:
 - send a communication about an APA to ask for a modification or extension;
 - send a new prior authorization that keeps the APA's preAuthRef, to modify or add items.
 
-Not verified in the code; check during the G4 work.
+The second is **done in Phase 4** (`POST api/rcm/advanced-authorizations/{id}/amend`). The communication about an APA is still open.
 
 **G15. Insurance discovery (HIDP API)** (IG section 6.6). Lists the insurers holding a policy for a patient. **Implemented** as a REST client (`Application/Nphies/Discovery`) with `POST api/rcm/eligibility/insurance-discovery`. Not yet tried against the OBA environment: the guide does not give the JSON envelope or the authorization header format.
 

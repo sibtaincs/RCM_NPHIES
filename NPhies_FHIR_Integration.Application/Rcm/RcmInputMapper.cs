@@ -49,6 +49,7 @@ public sealed class RcmInputMapper : IRcmInputMapper
     private readonly ApplicationDbContext _db;
     private readonly Documents.IClaimDocumentStorage _documents;
     private readonly string _identifierBase;
+    private readonly int _eligibilityLinkMaxAgeDays;
 
     public RcmInputMapper(ApplicationDbContext db, IOptions<NphiesConfiguration> nphies, IOptions<RcmOptions> rcm, Documents.IClaimDocumentStorage documents)
     {
@@ -58,6 +59,7 @@ public sealed class RcmInputMapper : IRcmInputMapper
         if (string.IsNullOrWhiteSpace(baseUrl)) baseUrl = nphies.Value.Sender.ProviderBaseUrl;
         if (string.IsNullOrWhiteSpace(baseUrl)) baseUrl = "http://provider.com";
         _identifierBase = baseUrl.TrimEnd('/');
+        _eligibilityLinkMaxAgeDays = rcm.Value.EligibilityLinkMaxAgeDays;
     }
 
     public string IdentifierSystem(string kind) => $"{_identifierBase}/{kind}";
@@ -106,6 +108,68 @@ public sealed class RcmInputMapper : IRcmInputMapper
     }
 
     /// <summary>Default episode-of-care identifier: one episode per original claim (clones copy it).</summary>
+    /// <summary>
+    /// Links the request to the responses it relies on (IG claim profiles, gap G3):
+    /// <list type="bullet">
+    /// <item>the eligibility check: the one picked on the claim, else the patient's latest eligible check with this
+    /// insurer. An online check is sent as <c>extension-eligibility-response</c>; an offline one fills the offline
+    /// reference and date. A claim that already has an offline reference is left alone.</item>
+    /// <item>the prior authorization response (or advanced authorization) that issued the claim's first preAuthRef,
+    /// sent as <c>extension-priorauthresponse</c>.</item>
+    /// </list>
+    /// </summary>
+    private async Task LinkResponsesAsync(Claim claim, ClaimRequestInput input, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(claim.EligibilityOfflineReference))
+        {
+            EligibilityCheck? check = null;
+            if (!string.IsNullOrWhiteSpace(claim.EligibilityCheckId))
+                check = await _db.EligibilityChecks.AsNoTracking().FirstOrDefaultAsync(e => e.Id == claim.EligibilityCheckId, ct);
+            if (check is null && _eligibilityLinkMaxAgeDays > 0)
+            {
+                var since = DateTime.UtcNow.AddDays(-_eligibilityLinkMaxAgeDays);
+                check = await _db.EligibilityChecks.AsNoTracking()
+                    .Where(e => e.PatientId == claim.PatientId && e.InsurerId == claim.InsurerId && e.ProviderId == claim.ProviderId
+                                && e.Status == RcmTransactionStatus.Completed && e.IsEligible == true && e.CreatedAt >= since
+                                && (e.IsOffline || e.ResponseIdentifier != null))
+                    .OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(ct);
+            }
+            if (check != null)
+            {
+                claim.EligibilityCheckId = check.Id;
+                if (check.IsOffline && !string.IsNullOrWhiteSpace(check.OfflineReference))
+                {
+                    claim.EligibilityOfflineReference = check.OfflineReference;
+                    claim.EligibilityOfflineDate = check.OfflineDate;
+                    input.EligibilityOfflineReference = check.OfflineReference;
+                    input.EligibilityOfflineDate = DateTimeIso(check.OfflineDate);
+                }
+                else if (!string.IsNullOrWhiteSpace(check.ResponseIdentifier) && !string.IsNullOrWhiteSpace(check.ResponseIdentifierSystem))
+                {
+                    input.EligibilityResponse = new NphiesIdentifier(check.ResponseIdentifierSystem!, check.ResponseIdentifier!);
+                }
+            }
+        }
+
+        var preAuthRef = input.PreAuthRefs.FirstOrDefault()?.Value;
+        if (string.IsNullOrWhiteSpace(preAuthRef)) return;
+        var response = await _db.ClaimResponses.AsNoTracking()
+            .Where(r => r.PreAuthRef == preAuthRef && r.PatientId == claim.PatientId && r.ResponseIdentifierValue != null && r.ResponseIdentifierSystem != null)
+            .OrderByDescending(r => r.ReceivedAt)
+            .Select(r => new { r.ResponseIdentifierSystem, r.ResponseIdentifierValue }).FirstOrDefaultAsync(ct);
+        if (response != null)
+        {
+            input.PriorAuthResponse = new NphiesIdentifier(response.ResponseIdentifierSystem!, response.ResponseIdentifierValue!);
+            return;
+        }
+        var advanced = await _db.AdvancedAuthorizations.AsNoTracking()
+            .Where(a => a.PreAuthRef == preAuthRef && a.IdentifierValue != null && a.IdentifierSystem != null && a.Status != "Cancelled")
+            .OrderByDescending(a => a.ReceivedAt)
+            .Select(a => new { a.IdentifierSystem, a.IdentifierValue }).FirstOrDefaultAsync(ct);
+        if (advanced != null)
+            input.PriorAuthResponse = new NphiesIdentifier(advanced.IdentifierSystem!, advanced.IdentifierValue!);
+    }
+
     public static string DefaultEpisode(Claim claim) => $"ep_{claim.ClaimNumber}";
 
     /// <summary>Default patient invoice number: the claim number, shared by every line of the claim.</summary>
@@ -153,11 +217,13 @@ public sealed class RcmInputMapper : IRcmInputMapper
         EnsureClaimDefaults(claim);
         input.Episode = new NphiesIdentifier(claim.EpisodeIdentifierSystem ?? IdentifierSystem("episode"), claim.EpisodeIdentifierValue!);
 
-        // A prior-auth carries the granted ref in ClaimResponse.PreAuthRef; only claims reference prior auths.
-        if (!IsPreAuth(claim) && !string.IsNullOrWhiteSpace(claim.PreAuthorizationRef))
+        // A claim references the prior authorization it bills against. A prior authorization carries a preAuthRef only
+        // when it changes an approved one (follow-up, extension, amendment): it then keeps the original's preAuthRef.
+        if (!string.IsNullOrWhiteSpace(claim.PreAuthorizationRef))
             input.PreAuthRefs.AddRange(claim.PreAuthorizationRef!
                 .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(v => new PreAuthRefInput(v)));
+        await LinkResponsesAsync(claim, input, ct);
 
         if (!string.IsNullOrWhiteSpace(claim.BatchIdentifier) && claim.BatchNumber is int bn)
             input.Batch = new BatchInfoInput

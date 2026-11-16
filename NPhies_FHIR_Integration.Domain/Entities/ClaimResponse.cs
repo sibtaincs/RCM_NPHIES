@@ -111,6 +111,13 @@ public class ClaimResponse : BaseEntity
     /// </summary>
     public DateTime? PreAuthPeriodEnd { get; set; }
 
+    /// <summary>Transfer of care (IG 7.3): the authorization number the receiving provider quotes.</summary>
+    public string? TransferAuthorizationNumber { get; set; }
+    public DateTime? TransferAuthorizationPeriodStart { get; set; }
+    public DateTime? TransferAuthorizationPeriodEnd { get; set; }
+    /// <summary>The provider the patient is referred to: its licence when the payer sends one, else its name.</summary>
+    public string? TransferAuthorizationProvider { get; set; }
+
     /// <summary>
     /// Advanced authorization reason (e.g., "referral")
     /// </summary>

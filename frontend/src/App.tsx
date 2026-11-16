@@ -12,6 +12,7 @@ import { RcmClaimsPage } from '@/features/rcm/RcmClaimsPage';
 import { BatchesPage } from '@/features/rcm/BatchesPage';
 import { CommunicationsPage } from '@/features/rcm/CommunicationsPage';
 import { StuckRequestsPage } from '@/features/rcm/StuckRequestsPage';
+import { AdvancedAuthorizationsPage } from '@/features/rcm/AdvancedAuthorizationsPage';
 import { PaymentsPage } from '@/features/rcm/PaymentsPage';
 import { DocumentsPage } from '@/features/rcm/DocumentsPage';
 import { DenialsPage } from '@/features/rcm/DenialsPage';
@@ -31,6 +32,7 @@ export function App() {
             <Route path="/rcm/claims" element={<RcmClaimsPage key="claim" mode="claim" />} />
             <Route path="/rcm/batches" element={<BatchesPage />} />
             <Route path="/rcm/communications" element={<CommunicationsPage />} />
+            <Route path="/rcm/advanced-authorizations" element={<AdvancedAuthorizationsPage />} />
             <Route path="/rcm/stuck" element={<StuckRequestsPage />} />
             <Route path="/rcm/payments" element={<PaymentsPage />} />
             <Route path="/rcm/documents" element={<DocumentsPage />} />

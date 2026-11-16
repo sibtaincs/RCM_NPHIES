@@ -155,6 +155,8 @@ export interface DerivedClaimRequest {
   submit?: boolean;
   reason?: string;
   newPeriodEnd?: string;
+  /** Prior authorization update or extension: item sequences to leave out (adjudicated authorizations only). */
+  removeItemSequences?: number[];
 }
 
 export interface LinkPreAuthRequest {
@@ -665,4 +667,32 @@ export interface StuckScanResult {
   escalated: number;
   resolved: number;
   open: number;
+}
+
+// ---- Advanced (payer-initiated) authorizations ----
+
+export interface AdvancedAuthorization {
+  id: string;
+  identifier?: string | null;
+  preAuthRef?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  reissueReason?: string | null;
+  reason?: string | null;
+  claimType?: string | null;
+  subType?: string | null;
+  outcome?: string | null;
+  adjudicationOutcome?: string | null;
+  disposition?: string | null;
+  patientId?: string | null;
+  patientIdentifier?: string | null;
+  patientName?: string | null;
+  insurerId?: string | null;
+  totalEligible?: number | null;
+  totalBenefit?: number | null;
+  /** Active | Used | Expired | Cancelled | Superseded */
+  status: string;
+  usedByClaimId?: string | null;
+  receivedAt: string;
+  items?: unknown;
 }

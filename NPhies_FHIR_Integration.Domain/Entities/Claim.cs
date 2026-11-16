@@ -395,6 +395,12 @@ public DateTime? AccidentDate { get; set; }
     public DateTime? PaidAt { get; set; }
     public DateTime? PreAuthPeriodEnd { get; set; }
 
+    /// <summary>
+    /// The eligibility check this claim or prior authorization relies on. An online check is sent as
+    /// <c>extension-eligibility-response</c>; an offline one fills the offline reference and date.
+    /// </summary>
+    public string? EligibilityCheckId { get; set; }
+
     /// <summary>MessageHeader id of the last outbound NPHIES message for this claim.</summary>
     public string? LastMessageId { get; set; }
 

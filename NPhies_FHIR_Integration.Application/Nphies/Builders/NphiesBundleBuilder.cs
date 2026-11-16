@@ -405,6 +405,11 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
             claim.Extension.Add(new Extension(NphiesExtensions.EligibilityOfflineDate, new FhirDateTime(input.EligibilityOfflineDate)));
         if (input.AuthorizationOfflineDate != null)
             claim.Extension.Add(new Extension(NphiesExtensions.AuthorizationOfflineDate, new FhirDateTime(input.AuthorizationOfflineDate)));
+        // Links to the responses this request relies on, by their business identifiers (the responses are not in this bundle).
+        if (input.EligibilityResponse != null)
+            claim.Extension.Add(new Extension(NphiesExtensions.EligibilityResponse, new ResourceReference { Identifier = Identifier(input.EligibilityResponse) }));
+        if (input.PriorAuthResponse != null)
+            claim.Extension.Add(new Extension(NphiesExtensions.PriorAuthResponse, new ResourceReference { Identifier = Identifier(input.PriorAuthResponse) }));
         if (input.Episode != null)
             claim.Extension.Add(new Extension(NphiesExtensions.Episode, Identifier(input.Episode)));
         if (input.Transfer.HasValue)

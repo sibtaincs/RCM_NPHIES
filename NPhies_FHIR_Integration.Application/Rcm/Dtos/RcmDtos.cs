@@ -256,6 +256,11 @@ public sealed class DerivedClaimRequestDto
     public string? Reason { get; set; }
     /// <summary>New billable / authorization period end (extensions).</summary>
     public DateTime? NewPeriodEnd { get; set; }
+    /// <summary>
+    /// Prior authorization update or extension: item sequences to leave out of the new version. Allowed only once the
+    /// payer has adjudicated; a pending request is cancelled and sent again instead.
+    /// </summary>
+    public List<int> RemoveItemSequences { get; set; } = new();
 }
 
 public sealed class LinkPreAuthDto
@@ -866,6 +871,8 @@ public sealed class AdvancedAuthorizationDto
     public string Id { get; set; } = string.Empty;
     public string? Identifier { get; set; }
     public string? PreAuthRef { get; set; }
+    /// <summary>Why the payer sent it again (cancel, correction, adjudication...); null for a first issue.</summary>
+    public string? ReissueReason { get; set; }
     public DateTime? PeriodStart { get; set; }
     public DateTime? PeriodEnd { get; set; }
     public string? Reason { get; set; }

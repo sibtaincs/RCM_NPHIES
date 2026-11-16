@@ -384,6 +384,21 @@ public sealed class RcmAdvancedAuthorizationsController : RcmControllerBase
     [HasPermission(Permissions.ClaimsUpdate)]
     public async Task<ActionResult<AdvancedAuthorizationDto>> Use(string id, [FromBody] UseAdvancedAuthorizationDto request, CancellationToken ct)
         => Ok(await _service.UseInClaimAsync(id, request, ProviderScope(), ct));
+
+    /// <summary>Asks the payer to cancel the authorization (cancel-request). Not allowed once it is used or expired.</summary>
+    [HttpPost("{id}/cancel")]
+    [HasPermission(Permissions.PreAuthSubmit)]
+    public async Task<ActionResult<TaskResultDto>> Cancel(string id, [FromBody] CancelClaimRequestDto? request, CancellationToken ct)
+        => Ok(await _service.CancelAsync(id, request ?? new CancelClaimRequestDto(), ProviderScope(), ct));
+
+    /// <summary>
+    /// Starts a draft prior authorization with all of the authorization's items and the same preAuthRef. Sending it
+    /// changes (overrides) the authorization.
+    /// </summary>
+    [HttpPost("{id}/amend")]
+    [HasPermission(Permissions.PreAuthCreate)]
+    public async Task<ActionResult<SubmissionResultDto>> Amend(string id, CancellationToken ct)
+        => Ok(await _service.AmendAsync(id, ProviderScope(), ct));
 }
 
 [Route("api/rcm/denials")]

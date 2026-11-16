@@ -48,6 +48,7 @@ export function AppLayout() {
   const rcmItems = visible([
     { key: '/rcm/eligibility', icon: <SafetyCertificateOutlined />, label: t('nav.eligibility'), perm: PERMISSIONS.EligibilityRead },
     { key: '/rcm/preauths', icon: <SolutionOutlined />, label: t('nav.preauths'), perm: PERMISSIONS.PreAuthRead },
+    { key: '/rcm/advanced-authorizations', icon: <SafetyCertificateOutlined />, label: t('nav.advancedAuthorizations'), perm: PERMISSIONS.PreAuthRead },
     { key: '/rcm/claims', icon: <FileTextOutlined />, label: t('nav.rcmClaims'), perm: PERMISSIONS.ClaimsRead },
     { key: '/rcm/batches', icon: <GroupOutlined />, label: t('nav.batches'), perm: PERMISSIONS.ClaimsRead },
     { key: '/rcm/communications', icon: <MessageOutlined />, label: t('nav.communications'), perm: PERMISSIONS.ClaimsRead },

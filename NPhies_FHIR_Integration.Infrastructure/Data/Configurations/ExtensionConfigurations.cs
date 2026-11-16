@@ -123,6 +123,7 @@ public class AdvancedAuthorizationConfiguration : IEntityTypeConfiguration<Advan
         entity.Property(a => a.IdentifierSystem).HasMaxLength(500);
         entity.Property(a => a.IdentifierValue).HasMaxLength(200);
         entity.Property(a => a.PreAuthRef).HasMaxLength(200);
+        entity.Property(a => a.ReissueReason).HasMaxLength(30);
         entity.Property(a => a.Reason).HasMaxLength(50);
         entity.Property(a => a.ClaimType).HasMaxLength(50);
         entity.Property(a => a.SubType).HasMaxLength(50);

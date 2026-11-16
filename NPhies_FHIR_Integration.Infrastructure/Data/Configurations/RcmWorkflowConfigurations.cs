@@ -105,6 +105,7 @@ public class EligibilityCheckConfiguration : IEntityTypeConfiguration<Eligibilit
         b.Property(x => x.Disposition).HasMaxLength(1000);
         b.Property(x => x.NotInForceReason).HasMaxLength(500);
         b.Property(x => x.ResponseIdentifier).HasMaxLength(200);
+        b.Property(x => x.ResponseIdentifierSystem).HasMaxLength(500);
         b.Property(x => x.OfflineReference).HasMaxLength(200);
 
         b.HasOne(x => x.Patient).WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Restrict);
@@ -131,6 +132,7 @@ public class RcmColumnsConfiguration :
         b.Property(x => x.PatientShareAmount).HasPrecision(18, 2);
         b.Property(x => x.PaidAmount).HasPrecision(18, 2);
         b.Property(x => x.LastMessageId).HasMaxLength(100);
+        b.Property(x => x.EligibilityCheckId).HasMaxLength(100);
         b.Property(x => x.BatchIdentifier).HasMaxLength(200);
         b.HasIndex(x => x.NphiesStatus);
         b.HasIndex(x => x.ClaimIdentifierValue);
@@ -143,6 +145,8 @@ public class RcmColumnsConfiguration :
         b.Property(x => x.AdjudicationOutcome).HasMaxLength(30);
         b.Property(x => x.Disposition).HasMaxLength(2000);
         b.Property(x => x.ResponseMessageId).HasMaxLength(100);
+        b.Property(x => x.TransferAuthorizationNumber).HasMaxLength(200);
+        b.Property(x => x.TransferAuthorizationProvider).HasMaxLength(500);
         foreach (var p in new[] { "TotalSubmitted", "TotalEligible", "TotalBenefit", "TotalCopay", "TotalTax", "TotalPatientShare", "PaymentAmount" })
             b.Property<decimal?>(p).HasPrecision(18, 2);
         b.HasIndex(x => x.ResponseMessageId);

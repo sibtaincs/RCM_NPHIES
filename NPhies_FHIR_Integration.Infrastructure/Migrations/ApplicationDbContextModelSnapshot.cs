@@ -754,6 +754,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ReissueReason")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("ServiceProviderId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -1826,6 +1830,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("EligibilityCheckId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("EligibilityOfflineDate")
                         .HasColumnType("datetime2");
@@ -3146,6 +3154,20 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<decimal?>("TotalTax")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TransferAuthorizationNumber")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("TransferAuthorizationPeriodEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("TransferAuthorizationPeriodStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TransferAuthorizationProvider")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -5073,6 +5095,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<string>("ResponseIdentifier")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ResponseIdentifierSystem")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime>("ServicedDate")
                         .HasColumnType("datetime2");
