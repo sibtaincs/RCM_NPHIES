@@ -106,11 +106,44 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
 
     public Task<CommunicationDto> SendAsync(SendCommunicationDto request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.ClaimId)) throw RcmWorkflowException.Invalid("claimId is required.");
+        if (!string.IsNullOrWhiteSpace(request.AdvancedAuthorizationId)) return SendAboutAdvancedAuthorizationAsync(request, ct);
+        if (string.IsNullOrWhiteSpace(request.ClaimId)) throw RcmWorkflowException.Invalid("claimId or advancedAuthorizationId is required.");
         return SendCoreAsync(request.ClaimId!, request, null, ct);
     }
 
-    private async Task<CommunicationDto> SendCoreAsync(string claimId, SendCommunicationDto request, CommunicationRequest? basedOn, CancellationToken ct)
+    private async Task<CommunicationDto> SendAboutAdvancedAuthorizationAsync(SendCommunicationDto request, CancellationToken ct)
+    {
+        var id = request.AdvancedAuthorizationId!;
+        var auth = await _db.AdvancedAuthorizations.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct)
+                   ?? throw RcmWorkflowException.NotFound("Advanced authorization", id);
+        if (auth.Status is "Cancelled" or "Superseded")
+            throw RcmWorkflowException.Conflict($"The authorization is {auth.Status.ToLowerInvariant()}; there is nothing left to ask the payer to change.");
+        if (string.IsNullOrWhiteSpace(auth.IdentifierValue) || string.IsNullOrWhiteSpace(auth.IdentifierSystem))
+            throw RcmWorkflowException.Conflict("The authorization has no identifier to refer to.");
+        var patient = auth.PatientId is null ? null : await _db.Patients.FirstOrDefaultAsync(p => p.Id == auth.PatientId, ct);
+        var provider = auth.ServiceProviderId is null ? null : await _db.Organizations.FirstOrDefaultAsync(o => o.Id == auth.ServiceProviderId, ct);
+        var insurer = auth.InsurerId is null ? null : await _db.Organizations.FirstOrDefaultAsync(o => o.Id == auth.InsurerId, ct);
+        if (patient is null || provider is null || insurer is null)
+            throw RcmWorkflowException.Conflict("The authorization's patient, provider or insurer is not on file.");
+
+        // Not a stored claim: it only carries the parties and the authorization's identifier into the shared send path.
+        var carrier = new Claim
+        {
+            PatientId = patient.Id, Patient = patient,
+            ProviderId = provider.Id, Provider = provider,
+            InsurerId = insurer.Id, Insurer = insurer,
+            ClaimIdentifierSystem = auth.IdentifierSystem,
+            ClaimIdentifierValue = auth.IdentifierValue,
+            SubmittedAt = auth.ReceivedAt,
+        };
+        return await SendCoreAsync(id, request, null, ct, carrier);
+    }
+
+    /// <param name="about">
+    /// An advanced authorization to write about instead of a claim (IG 7.9.1: ask the payer to change or extend it).
+    /// The claim is then only a carrier for the parties and the authorization's identifier and is not stored.
+    /// </param>
+    private async Task<CommunicationDto> SendCoreAsync(string claimId, SendCommunicationDto request, CommunicationRequest? basedOn, CancellationToken ct, Claim? about = null)
     {
         var texts = request.Texts.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
         if (texts.Count == 0 && request.Attachments.Count == 0)
@@ -129,7 +162,8 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
         if (!Categories.Contains(category)) errors.Add($"Unsupported category '{category}'.");
         if (errors.Count > 0) throw RcmWorkflowException.Invalid("Invalid communication.", errors);
 
-        var claim = await _db.Claims.Include(c => c.Patient).Include(c => c.Provider).Include(c => c.Insurer).FirstOrDefaultAsync(c => c.Id == claimId, ct)
+        var aboutType = about is null ? "Claim" : "ClaimResponse";
+        var claim = about ?? await _db.Claims.Include(c => c.Patient).Include(c => c.Provider).Include(c => c.Insurer).FirstOrDefaultAsync(c => c.Id == claimId, ct)
             ?? throw RcmWorkflowException.NotFound("Claim", claimId);
         if (claim.SubmittedAt is null || string.IsNullOrWhiteSpace(claim.ClaimIdentifierValue))
             throw RcmWorkflowException.Conflict("Communications can only reference a claim that was sent to NPHIES.");
@@ -148,7 +182,7 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             CategorySystem = NphiesCodeSystems.CommunicationCategory,
             Priority = request.Priority,
             SubjectPatientId = claim.PatientId,
-            AboutResourceType = "Claim",
+            AboutResourceType = aboutType,
             AboutIdentifierSystem = claim.ClaimIdentifierSystem,
             AboutIdentifierValue = claim.ClaimIdentifierValue,
             BasedOnResourceType = basedOn is null ? null : "CommunicationRequest",
@@ -156,7 +190,7 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             BasedOnIdentifierValue = basedOn?.IdentifierValue,
             SenderId = claim.ProviderId,
             RecipientId = claim.InsurerId,
-            ClaimId = claim.Id,
+            ClaimId = about is null ? claim.Id : null,
             CommunicationRequestId = basedOn?.Id,
             PayloadContent = texts.FirstOrDefault(),
             PayloadAttachmentContentType = request.Attachments.FirstOrDefault()?.ContentType,
@@ -177,6 +211,7 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             Identifier = new NphiesIdentifier(entity.IdentifierSystem!, entity.IdentifierValue!),
             BasedOnCommunicationRequest = basedOn is null ? null : new NphiesIdentifier(basedOn.IdentifierSystem ?? _mapper.IdentifierSystem("communicationrequest"), basedOn.IdentifierValue!),
             AboutClaim = new NphiesIdentifier(claim.ClaimIdentifierSystem ?? _mapper.IdentifierSystem("claim"), claim.ClaimIdentifierValue!),
+            AboutResourceType = aboutType,
             Category = category,
             Priority = request.Priority ?? "routine",
             Reason = string.IsNullOrWhiteSpace(request.ReasonCode) ? null : new NphiesCoding(NphiesCodeSystems.CommunicationReason, request.ReasonCode!),

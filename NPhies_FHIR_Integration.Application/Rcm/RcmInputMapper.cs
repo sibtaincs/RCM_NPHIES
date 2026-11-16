@@ -210,6 +210,8 @@ public sealed class RcmInputMapper : IRcmInputMapper
             EligibilityOfflineReference = claim.EligibilityOfflineReference,
             EligibilityOfflineDate = DateTimeIso(claim.EligibilityOfflineDate),
             AuthorizationOfflineDate = DateTimeIso(claim.AuthorizationOfflineDate),
+            ReferralDisplay = string.IsNullOrWhiteSpace(claim.ReferralIdentifier) ? null : claim.ReferralIdentifier.Trim(),
+            Referral = string.IsNullOrWhiteSpace(claim.ReferralIdentifier) ? null : new NphiesIdentifier(IdentifierSystem("referral"), claim.ReferralIdentifier.Trim()),
             Transfer = claim.IsTransfer,
             Newborn = claim.IsNewborn ? true : null,
         };

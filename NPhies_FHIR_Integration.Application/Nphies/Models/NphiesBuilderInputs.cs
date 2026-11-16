@@ -358,6 +358,13 @@ public sealed class ClaimRequestInput : NphiesMessageInput
     public NphiesIdentifier? EligibilityResponse { get; set; }
     /// <summary>Identifier of the prior authorization response or advanced authorization (<c>extension-priorauthresponse</c>).</summary>
     public NphiesIdentifier? PriorAuthResponse { get; set; }
+    /// <summary>
+    /// Text of <c>Claim.referral</c>: who referred the patient. The receiving provider of a transfer sends it when it
+    /// extends the transferred authorization (IG 7.3).
+    /// </summary>
+    public string? ReferralDisplay { get; set; }
+    /// <summary>Business identifier of the referral; the IG requires one on <c>Claim.referral</c> (DP-Reference-3a).</summary>
+    public NphiesIdentifier? Referral { get; set; }
     public NphiesIdentifier? Episode { get; set; }
     public bool? Transfer { get; set; }
     /// <summary>extension-newborn: the patient is a newborn using the subscriber's (mother's) coverage.</summary>
@@ -447,6 +454,8 @@ public sealed class CommunicationInput : NphiesMessageInput
     public NphiesIdentifier? BasedOnCommunicationRequest { get; set; }
     /// <summary>Identifier of the Claim the communication is about.</summary>
     public NphiesIdentifier AboutClaim { get; set; } = new(string.Empty, string.Empty);
+    /// <summary>Resource type of what the communication is about: Claim, or ClaimResponse for an advanced authorization.</summary>
+    public string AboutResourceType { get; set; } = "Claim";
     public string Status { get; set; } = "completed";
     /// <summary>communication-category code (alert, notification, reminder, instruction).</summary>
     public string Category { get; set; } = "instruction";

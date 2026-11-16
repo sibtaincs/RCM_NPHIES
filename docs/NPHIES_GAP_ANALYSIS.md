@@ -177,7 +177,7 @@ The original finding:
 - send a communication about an APA to ask for a modification or extension;
 - send a new prior authorization that keeps the APA's preAuthRef, to modify or add items.
 
-The second is **done in Phase 4** (`POST api/rcm/advanced-authorizations/{id}/amend`). The communication about an APA is still open.
+The second is **done in Phase 4** (`POST api/rcm/advanced-authorizations/{id}/amend`). The communication about an APA is done too (`advancedAuthorizationId` on `POST api/rcm/communications`).
 
 **G15. Insurance discovery (HIDP API)** (IG section 6.6). Lists the insurers holding a policy for a patient. **Implemented** as a REST client (`Application/Nphies/Discovery`) with `POST api/rcm/eligibility/insurance-discovery`. Not yet tried against the OBA environment: the guide does not give the JSON envelope or the authorization header format.
 
