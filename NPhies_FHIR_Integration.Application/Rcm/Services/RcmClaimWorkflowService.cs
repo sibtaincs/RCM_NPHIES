@@ -239,7 +239,10 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
             throw RcmWorkflowException.Conflict($"Prior authorization is {source.NphiesStatus} and cannot be updated.");
         if (source.SubmittedAt is null)
             throw RcmWorkflowException.Conflict("Prior authorization has not been sent yet; edit and submit it directly.");
-        var clone = await CloneAsync(source, "U", relationship: "prior", useOverride: null, ct);
+        EnsureItemsCanBeRemoved(source, request);
+        var clone = await CloneAsync(source, "U", relationship: "prior", useOverride: null, ct,
+            relateTo: await FindChainRootAsync(source, ct), skipItemSequences: request.RemoveItemSequences);
+        clone.PreAuthorizationRef = await ChainPreAuthRefAsync(source, ct);
         ApplyPeriod(clone, request.NewPeriodEnd);
         return await FinishDerivedAsync(clone, request, ct);
     }
@@ -249,7 +252,10 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
         var source = await LoadForDerivationAsync(preAuthId, expectPreAuth: true, ct);
         if (source.NphiesStatus is not (RcmClaimStatus.Approved or RcmClaimStatus.PartiallyApproved))
             throw RcmWorkflowException.Conflict("Only an approved prior authorization can be extended.");
-        var clone = await CloneAsync(source, "E", relationship: "extend", useOverride: null, ct);
+        EnsureItemsCanBeRemoved(source, request);
+        var clone = await CloneAsync(source, "E", relationship: "extend", useOverride: null, ct,
+            relateTo: await FindChainRootAsync(source, ct), skipItemSequences: request.RemoveItemSequences);
+        clone.PreAuthorizationRef = await ChainPreAuthRefAsync(source, ct);
         ApplyPeriod(clone, request.NewPeriodEnd);
         return await FinishDerivedAsync(clone, request, ct);
     }
@@ -322,6 +328,47 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
         return claim;
     }
 
+    /// <summary>
+    /// The first request of a chain of prior authorization versions. A follow-up, extension or amendment always
+    /// relates to it (A), never to the version in between (B).
+    /// </summary>
+    private async Task<Claim> FindChainRootAsync(Claim source, CancellationToken ct)
+    {
+        var current = source;
+        var seen = new HashSet<string> { source.Id };
+        for (var depth = 0; depth < 50; depth++)
+        {
+            var parentId = current.RelatedClaims
+                .Where(r => r.ReferencedClaimId != null && r.Relationship is "prior" or "extend")
+                .Select(r => r.ReferencedClaimId).FirstOrDefault();
+            if (parentId is null || !seen.Add(parentId)) break;
+            var parent = await _db.Claims.Include(c => c.RelatedClaims).FirstOrDefaultAsync(c => c.Id == parentId, ct);
+            if (parent is null) break;
+            current = parent;
+        }
+        return current;
+    }
+
+    /// <summary>The preAuthRef a new version keeps: the one the payer issued for this version, else the one it carried itself.</summary>
+    private async Task<string?> ChainPreAuthRefAsync(Claim source, CancellationToken ct)
+    {
+        var issued = await LatestResponseQuery(source.Id).Where(r => r.PreAuthRef != null && r.PreAuthRef != "").Select(r => r.PreAuthRef).FirstOrDefaultAsync(ct);
+        return issued ?? source.PreAuthorizationRef;
+    }
+
+    /// <summary>
+    /// Items can be left out of a new version only once the payer has adjudicated. While the request is still pending
+    /// the IG says to cancel it and send a new one with only the items needed.
+    /// </summary>
+    private static void EnsureItemsCanBeRemoved(Claim source, DerivedClaimRequestDto request)
+    {
+        if (request.RemoveItemSequences.Count == 0) return;
+        if (source.NphiesStatus is RcmClaimStatus.Approved or RcmClaimStatus.PartiallyApproved or RcmClaimStatus.Rejected or RcmClaimStatus.NotRequired) return;
+        throw RcmWorkflowException.Conflict(
+            $"The prior authorization is {source.NphiesStatus ?? RcmClaimStatus.Draft}: the payer has not adjudicated it yet. " +
+            "Cancel it and send a new prior authorization with only the items needed.");
+    }
+
     private static void ApplyPeriod(Claim clone, DateTime? newEnd)
     {
         if (!newEnd.HasValue) return;
@@ -345,7 +392,10 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
     }
 
     /// <summary>Deep-copies a claim (items, details, diagnoses, care team, supporting info, vision/oral rows) as a new draft version.</summary>
-    private async Task<Claim> CloneAsync(Claim source, string suffix, string? relationship, string? useOverride, CancellationToken ct)
+    /// <param name="relateTo">The claim NPHIES is told this one relates to; default: <paramref name="source"/>.</param>
+    /// <param name="skipItemSequences">Items of the source to leave out of the copy.</param>
+    private async Task<Claim> CloneAsync(Claim source, string suffix, string? relationship, string? useOverride, CancellationToken ct,
+        Claim? relateTo = null, IReadOnlyCollection<int>? skipItemSequences = null)
     {
         var prefix = $"{source.ClaimNumber}-{suffix}";
         var existing = await _db.Claims.CountAsync(c => c.ClaimNumber.StartsWith(prefix), ct);
@@ -383,7 +433,15 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
         _db.Claims.Add(clone);
 
         var itemIdMap = new Dictionary<string, string>();
-        foreach (var item in source.Items)
+        var skipped = skipItemSequences is { Count: > 0 } ? skipItemSequences.ToHashSet() : null;
+        if (skipped != null)
+        {
+            var unknown = skipped.Where(s => source.Items.All(i => i.Sequence != s)).ToList();
+            if (unknown.Count > 0) throw RcmWorkflowException.Invalid($"There is no item with sequence {string.Join(", ", unknown)}.");
+            if (source.Items.All(i => skipped.Contains(i.Sequence))) throw RcmWorkflowException.Invalid("At least one item must remain. To drop every item, cancel the prior authorization.");
+            clone.Total = source.Items.Where(i => !skipped.Contains(i.Sequence)).Sum(i => i.Net ?? 0m);
+        }
+        foreach (var item in source.Items.Where(i => skipped is null || !skipped.Contains(i.Sequence)))
         {
             var ni = (ClaimItem)_db.Entry(item).CurrentValues.ToObject();
             ni.Id = Guid.NewGuid().ToString();
@@ -415,7 +473,8 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
 
         if (relationship != null)
         {
-            var sourceIdentifier = _mapper.EnsureClaimIdentifier(source);
+            // NPHIES is told about the first request of the chain; ReferencedClaimId keeps our own link to the version replaced.
+            var sourceIdentifier = _mapper.EnsureClaimIdentifier(relateTo ?? source);
             _db.Add(new ClaimRelated
             {
                 ClaimId = clone.Id,
@@ -602,6 +661,10 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
             throw RcmWorkflowException.Conflict($"Claim is already {claim.NphiesStatus}.");
         if (cancel != null && string.IsNullOrWhiteSpace(cancel.Reason))
             throw RcmWorkflowException.Invalid("A cancellation reason is required.");
+        // An authorization whose period has passed is already void; NPHIES says not to cancel it.
+        if (cancel != null && RcmInputMapper.IsPreAuth(claim) && claim.PreAuthPeriodEnd.HasValue && claim.PreAuthPeriodEnd.Value.Date < DateTime.UtcNow.Date)
+            throw RcmWorkflowException.Conflict(
+                $"The prior authorization expired on {claim.PreAuthPeriodEnd:yyyy-MM-dd}, so it is no longer in force and must not be cancelled.");
         if (claim.Provider is null || claim.Insurer is null)
             throw RcmWorkflowException.Invalid("Claim provider or insurer is missing.");
 

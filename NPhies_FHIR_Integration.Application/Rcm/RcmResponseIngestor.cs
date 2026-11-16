@@ -201,6 +201,10 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         claimResponse.PreAuthRef = adj.PreAuthRef;
         claimResponse.PreAuthPeriodStart = ParseDate(adj.PreAuthPeriodStart);
         claimResponse.PreAuthPeriodEnd = ParseDate(adj.PreAuthPeriodEnd);
+        claimResponse.TransferAuthorizationNumber = Truncate(adj.TransferAuthorizationNumber, 200);
+        claimResponse.TransferAuthorizationPeriodStart = ParseDate(adj.TransferAuthorizationPeriodStart);
+        claimResponse.TransferAuthorizationPeriodEnd = ParseDate(adj.TransferAuthorizationPeriodEnd);
+        claimResponse.TransferAuthorizationProvider = Truncate(adj.TransferAuthorizationProvider, 500);
         claimResponse.Outcome = adj.Outcome;
         claimResponse.AdjudicationOutcome = adj.AdjudicationOutcome;
         claimResponse.Disposition = Truncate(adj.Disposition, 1000);
@@ -559,10 +563,16 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         var key = cr.Id ?? identifier?.Value ?? response.MessageId ?? Guid.NewGuid().ToString();
         var existing = await _db.AdvancedAuthorizations.FirstOrDefaultAsync(a =>
             a.ClaimResponseId == key || (identifier != null && identifier.Value != null && a.IdentifierValue == identifier.Value), ct);
-        if (existing != null) return (RcmEntityTypes.AdvancedAuthorization, existing.Id);
+
 
         Extension? Ext(string name) => cr.Extension.FirstOrDefault(e => e.Url?.EndsWith("/extension-" + name, StringComparison.OrdinalIgnoreCase) == true);
         static string? Code(DataType? v) => (v as CodeableConcept)?.Coding.FirstOrDefault()?.Code ?? (v as Coding)?.Code ?? (v as Code)?.Value;
+
+        // The payer changes or withdraws an authorization by sending it again with a reissue reason (IG 7.9.2):
+        // "cancel" withdraws it, any other reason replaces it. Without one, a repeat is only a redelivery.
+        var reissue = Code(Ext("adjudication-reissue")?.Value)?.ToLowerInvariant();
+        var cancels = reissue == "cancel" || cr.Status == FinancialResourceStatusCodes.Cancelled;
+        if (existing != null && reissue is null && !cancels) return (RcmEntityTypes.AdvancedAuthorization, existing.Id);
 
         var patientResource = Resolve(bundle!, cr.Patient) as Hl7.Fhir.Model.Patient;
         var patientIdentifier = cr.Patient?.Identifier?.Value ?? patientResource?.Identifier.FirstOrDefault()?.Value;
@@ -631,11 +641,50 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
             ItemsJson = JsonSerializer.Serialize(items),
             DiagnosesJson = diagnoses.Count == 0 ? null : JsonSerializer.Serialize(diagnoses),
             FhirClaimResponseJson = Serializer.SerializeToString(cr),
-            Status = cr.Status == FinancialResourceStatusCodes.Cancelled ? "Cancelled" : "Active",
+            Status = cancels ? "Cancelled" : "Active",
+            ReissueReason = Truncate(reissue, 30),
             MessageId = response.MessageId,
             ReceivedAt = DateTime.UtcNow,
         };
         if (string.IsNullOrWhiteSpace(entity.PatientName)) entity.PatientName = null;
+
+        if (existing != null)
+        {
+            // The same authorization sent again: change it in place and keep what we did with it (the claim that used it).
+            if (cancels) existing.Status = "Cancelled";
+            else
+            {
+                existing.PreAuthRef = entity.PreAuthRef ?? existing.PreAuthRef;
+                existing.PreAuthPeriodStart = entity.PreAuthPeriodStart;
+                existing.PreAuthPeriodEnd = entity.PreAuthPeriodEnd;
+                existing.Outcome = entity.Outcome;
+                existing.AdjudicationOutcome = entity.AdjudicationOutcome;
+                existing.TotalEligible = entity.TotalEligible;
+                existing.TotalBenefit = entity.TotalBenefit;
+                existing.ItemsJson = entity.ItemsJson;
+                existing.DiagnosesJson = entity.DiagnosesJson;
+                existing.FhirClaimResponseJson = entity.FhirClaimResponseJson;
+            }
+            existing.Disposition = entity.Disposition ?? existing.Disposition;
+            existing.ReissueReason = entity.ReissueReason;
+            existing.MessageId = entity.MessageId;
+            existing.UpdatedAt = DateTime.UtcNow;
+            return (RcmEntityTypes.AdvancedAuthorization, existing.Id);
+        }
+
+        // A new response with the preAuthRef of an authorization we hold withdraws or replaces that one.
+        if (!string.IsNullOrWhiteSpace(entity.PreAuthRef))
+        {
+            var earlier = await _db.AdvancedAuthorizations
+                .Where(a => a.PreAuthRef == entity.PreAuthRef && a.InsurerLicense == entity.InsurerLicense && a.Status != "Cancelled" && a.Status != "Superseded")
+                .ToListAsync(ct);
+            foreach (var previous in earlier)
+            {
+                previous.Status = cancels ? "Cancelled" : "Superseded";
+                previous.ReissueReason = entity.ReissueReason;
+                previous.UpdatedAt = DateTime.UtcNow;
+            }
+        }
         _db.AdvancedAuthorizations.Add(entity);
         return (RcmEntityTypes.AdvancedAuthorization, entity.Id);
     }
@@ -734,6 +783,7 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         check.BenefitPeriodStart = ParseDate(insurance?.BenefitPeriodStart);
         check.BenefitPeriodEnd = ParseDate(insurance?.BenefitPeriodEnd);
         check.ResponseIdentifier = elig.Identifier;
+        check.ResponseIdentifierSystem = elig.IdentifierSystem;
         check.BenefitsJson = elig.Insurance.Count == 0 ? null : JsonSerializer.Serialize(elig.Insurance.Select(i => new
         {
             i.InForce,

@@ -74,6 +74,8 @@ public static class NphiesExtensions
     public const string BatchNumber = B + "batch-number";
     public const string BatchPeriod = B + "batch-period";
     public const string EligibilityResponse = B + "eligibility-response";
+    /// <summary>Reference (by identifier) to the prior authorization response or advanced authorization a claim relies on.</summary>
+    public const string PriorAuthResponse = B + "priorauthresponse";
     public const string KsaDiagnosisRelatedGroup = B + "ksa-diagnosis-related-group";
 
     // Claim.item

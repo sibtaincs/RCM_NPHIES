@@ -19,6 +19,7 @@ import type {
   EligibilityCheck,
   EligibilityCheckRequest,
   OfflineEligibilityRequest,
+  AdvancedAuthorization,
   StuckRequest,
   StuckScanResult,
   InsuranceDiscovery,
@@ -110,6 +111,12 @@ export const rcmApi = {
     list: (q: RcmQuery) => get<BatchSubmitResult[]>('/rcm/batches', q),
     get: (batchId: string) => get<BatchSubmitResult>(`/rcm/batches/${encodeURIComponent(batchId)}`),
     submit: (body: BatchSubmitRequest) => post<BatchSubmitResult>('/rcm/batches', body),
+  },
+
+  advancedAuthorizations: {
+    list: (q: RcmQuery) => get<RcmPagedResult<AdvancedAuthorization>>('/rcm/advanced-authorizations', q),
+    cancel: (id: string, reason: string) => post<TaskResult>(`/rcm/advanced-authorizations/${id}/cancel`, { reason }),
+    amend: (id: string) => post<SubmissionResult>(`/rcm/advanced-authorizations/${id}/amend`),
   },
 
   messages: {

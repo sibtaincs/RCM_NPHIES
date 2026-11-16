@@ -183,6 +183,7 @@ public sealed class NphiesResponseParser : INphiesResponseParser
     {
         Id = response.Id,
         Identifier = response.Identifier.FirstOrDefault()?.Value,
+        IdentifierSystem = response.Identifier.FirstOrDefault()?.System,
         RequestIdentifier = response.Request?.Identifier?.Value,
         Purposes = response.PurposeElement.Select(p => p.ObjectValue as string).OfType<string>().ToList(),
         Outcome = response.OutcomeElement?.ObjectValue as string,
@@ -232,6 +233,10 @@ public sealed class NphiesResponseParser : INphiesResponseParser
         Outcome = response.OutcomeElement?.ObjectValue as string,
         AdjudicationOutcome = ExtensionCode(response, NphiesExtensions.AdjudicationOutcome),
         ReissueReason = ExtensionCode(response, NphiesExtensions.AdjudicationReissue),
+        TransferAuthorizationNumber = (response.GetExtension(NphiesExtensions.TransferAuthorizationNumber)?.Value as FhirString)?.Value,
+        TransferAuthorizationPeriodStart = (response.GetExtension(NphiesExtensions.TransferAuthorizationPeriod)?.Value as Period)?.Start,
+        TransferAuthorizationPeriodEnd = (response.GetExtension(NphiesExtensions.TransferAuthorizationPeriod)?.Value as Period)?.End,
+        TransferAuthorizationProvider = TransferProvider(response.GetExtension(NphiesExtensions.TransferAuthorizationProvider)?.Value as ResourceReference),
         Disposition = response.Disposition,
         PreAuthRef = response.PreAuthRef,
         PreAuthPeriodStart = response.PreAuthPeriod?.Start,
@@ -382,6 +387,10 @@ public sealed class NphiesResponseParser : INphiesResponseParser
     private static string? CurrencyOf(Money? money) => money?.CurrencyElement?.ObjectValue as string;
 
     private static string? Code(CodeableConcept? concept) => concept?.Coding.FirstOrDefault()?.Code;
+
+    /// <summary>The provider a referral is authorized for: its licence when the reference carries one, else its name or reference.</summary>
+    private static string? TransferProvider(ResourceReference? reference) =>
+        reference?.Identifier?.Value ?? reference?.Display ?? reference?.Reference;
 
     private static string? ExtensionCode(IExtendable element, string url) =>
         element.Extension.FirstOrDefault(e => e.Url == url)?.Value switch

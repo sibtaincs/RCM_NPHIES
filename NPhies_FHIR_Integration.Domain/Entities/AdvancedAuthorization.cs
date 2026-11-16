@@ -47,6 +47,8 @@ public class AdvancedAuthorization : BaseEntity
 
     /// <summary>Active | Used | Cancelled (expiry is derived from <see cref="PreAuthPeriodEnd"/>).</summary>
     public string Status { get; set; } = "Active";
+    /// <summary>Why the payer sent the authorization again (adjudication-reissue): cancel, correction, adjudication...</summary>
+    public string? ReissueReason { get; set; }
     public string? UsedByClaimId { get; set; }
     public DateTime? UsedAt { get; set; }
 

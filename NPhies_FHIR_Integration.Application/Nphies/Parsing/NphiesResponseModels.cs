@@ -48,6 +48,11 @@ public sealed class NphiesClaimAdjudicationResult
     /// <summary>NPHIES adjudication-outcome extension: approved, rejected, partial, not-required, pended.</summary>
     public string? AdjudicationOutcome { get; init; }
     public string? ReissueReason { get; init; }
+    /// <summary>Transfer of care (IG 7.3): the number the receiving provider quotes, the period it is valid for and that provider.</summary>
+    public string? TransferAuthorizationNumber { get; init; }
+    public string? TransferAuthorizationPeriodStart { get; init; }
+    public string? TransferAuthorizationPeriodEnd { get; init; }
+    public string? TransferAuthorizationProvider { get; init; }
     public string? Disposition { get; init; }
     public string? PreAuthRef { get; init; }
     public string? PreAuthPeriodStart { get; init; }
@@ -103,6 +108,7 @@ public sealed class NphiesEligibilityResult
 {
     public string? Id { get; init; }
     public string? Identifier { get; init; }
+    public string? IdentifierSystem { get; init; }
     public string? RequestIdentifier { get; init; }
     public List<string> Purposes { get; init; } = new();
     public string? Outcome { get; init; }

@@ -29,6 +29,12 @@ public sealed class RcmOptions
     /// </summary>
     public int PollLeaseSeconds { get; set; } = 900;
 
+    /// <summary>
+    /// A claim or prior authorization with no eligibility check picked is linked to the patient's latest eligible
+    /// check with the same insurer, if it is no older than this. 0 turns the automatic link off.
+    /// </summary>
+    public int EligibilityLinkMaxAgeDays { get; set; } = 90;
+
     /// <summary>Flag a claim or prior authorization that has had no final response for this many days.</summary>
     public int StuckAfterDays { get; set; } = 3;
 
