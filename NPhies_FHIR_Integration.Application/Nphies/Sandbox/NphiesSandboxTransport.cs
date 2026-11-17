@@ -81,6 +81,36 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     /// <summary>The deferred final response of a message that was answered "queued".</summary>
     private readonly ConcurrentDictionary<string, string> _deferred = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, bool> _offlinePayers = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Requests the payer pended ("deferred" priority), by request identifier, until the provider communicates.</summary>
+    private readonly ConcurrentDictionary<string, PendedRequest> _pended = new(StringComparer.Ordinal);
+
+    private sealed class PendedRequest
+    {
+        public PendedRequest(string providerLicense, NphiesTransportRequest request, MessageHeader header, Claim claim, ClaimResponse final, string deferredJson)
+        {
+            ProviderLicense = providerLicense;
+            Request = request;
+            Header = header;
+            Claim = claim;
+            Final = final;
+            DeferredJson = deferredJson;
+        }
+
+        public string ProviderLicense { get; }
+        public NphiesTransportRequest Request { get; }
+        public MessageHeader Header { get; }
+        public Claim Claim { get; }
+        public ClaimResponse Final { get; }
+        public string DeferredJson { get; }
+        public bool InformationRequested { get; set; }
+    }
+
+    /// <summary>
+    /// Puts a message the payer initiates (an advanced authorization, a communication request, a reissued response) in
+    /// the provider's queue, to be collected by the next poll.
+    /// </summary>
+    public void Deliver(string providerLicense, string messageJson) =>
+        _queues.GetOrAdd(providerLicense, _ => new ConcurrentQueue<string>()).Enqueue(messageJson);
 
     /// <summary>
     /// A claim or prior authorization with more items than this is a "large claim": NPHIES answers it itself
@@ -130,6 +160,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             NphiesMessageEvents.BatchRequest => Batch(ctx, bundle),
             NphiesMessageEvents.StatusCheck or NphiesMessageEvents.CancelRequest => TaskResponse(ctx, bundle),
             NphiesMessageEvents.PollRequest => Poll(ctx, bundle),
+            NphiesMessageEvents.Communication => Communication(ctx, bundle),
             _ => Message(ctx, NphiesMessageEvents.Acknowledgement, null, ctx.Header.Id),
         };
 
@@ -152,7 +183,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     /// </summary>
     private string DuplicateAnswer(Context ctx, string key, string stored)
     {
-        if (!_deferred.TryGetValue(key, out var final)) return stored;
+        if (!_deferred.TryGetValue(key, out var final) || _pended.Values.Any(p => p.DeferredJson == final)) return stored;
         var stillQueued = _queues.TryGetValue(ctx.ProviderLicense, out var queue) && queue.Contains(final);
         return stillQueued ? stored : final;
     }
@@ -328,10 +359,18 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         }
 
         // NPHIES accepted the message but the payer adjudicates later: reply "queued" now, deliver via poll.
-        var deferredDecision = decision != Decision.Queued ? decision : Hash(Key(claim)) % 3 == 0 ? Decision.Partial : Decision.Approved;
+        var deferredDecision = decision != Decision.Queued ? decision : DecideFinal(claim);
         var deferred = BuildClaimResponse(claim, deferredDecision);
         var deferredMessage = Message(ctx, responseEvent, deferred, ctx.Header.Id);
-        _deferred[ctx.ProviderLicense + "|" + ctx.Header.Id] = Serializer.SerializeToString(deferredMessage);
+        var deferredJson = Serializer.SerializeToString(deferredMessage);
+        _deferred[ctx.ProviderLicense + "|" + ctx.Header.Id] = deferredJson;
+        if (!heldByNphies && Key(claim) is { Length: > 0 } pendedId)
+        {
+            // Pended by the payer ("deferred" priority): it decides by the next poll, or after the provider's communication
+            // when it asks for more information first (AskForInformationWhenPended; Authorization test cases 1, 2, 8, 9).
+            _pended[pendedId] = new PendedRequest(ctx.ProviderLicense, ctx.Request, ctx.Header, claim, deferred, deferredJson);
+            return Message(ctx, responseEvent, BuildQueuedResponse(claim), ctx.Header.Id);
+        }
         Enqueue(ctx.ProviderLicense, deferredMessage);
         EnqueueFollowUps(ctx, claim, deferred);
 
@@ -360,6 +399,16 @@ public sealed class NphiesSandboxTransport : INphiesTransport
 
     private static Decision Decide(Claim claim)
     {
+        // Priority "deferred" asks for a pended answer: queued now, the decision by poll (Authorization test cases V6.0).
+        if (claim.Priority?.Coding.Any(c => c.Code == "deferred") == true) return Decision.Queued;
+        return DecideFinal(claim);
+    }
+
+    /// <summary>The payer's decision once it adjudicates; never "queued".</summary>
+    private static Decision DecideFinal(Claim claim)
+    {
+        // An unlisted drug code is not covered: that line is rejected and the rest approved.
+        if (claim.Item.Count > 1 && claim.Item.Any(IsUnlistedDrug)) return Decision.Partial;
         // Resubmissions/appeals/updates (Claim.related) are approved so the appeal flow can be demonstrated end to end.
         if (claim.Related.Count > 0) return Decision.Approved;
         return (Hash(Key(claim)) % 10) switch
@@ -367,7 +416,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             <= 5 => Decision.Approved,
             6 or 7 => Decision.Partial,
             8 => Decision.Rejected,
-            _ => Decision.Queued,
+            _ => Hash(Key(claim)) % 3 == 0 ? Decision.Partial : Decision.Approved,
         };
     }
 
@@ -385,7 +434,9 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     {
         var h = Hash(Key(claim));
         var response = NewClaimResponse(claim, "final");
-        var deniedSequence = decision == Decision.Partial && claim.Item.Count > 1 ? claim.Item.Last().Sequence : null;
+        var deniedSequence = decision == Decision.Partial && claim.Item.Count > 1
+            ? (claim.Item.FirstOrDefault(IsUnlistedDrug) ?? claim.Item.Last()).Sequence
+            : null;
         var reason = DenialReasons[h % DenialReasons.Length];
         var totals = new Dictionary<string, decimal>();
 
@@ -558,8 +609,8 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         var task = request.Entry.Select(e => e.Resource).OfType<FhirTask>().First();
         var cancel = ctx.Request.EventCode == NphiesMessageEvents.CancelRequest;
         var focusValue = task.Focus?.Identifier?.Value;
-        var queued = !cancel && focusValue != null && _queues.TryGetValue(ctx.ProviderLicense, out var q)
-                     && q.Any(json => json.Contains(focusValue, StringComparison.Ordinal) && json.Contains("\"ClaimResponse\"", StringComparison.Ordinal));
+        var queued = !cancel && focusValue != null && (_pended.ContainsKey(focusValue) || _queues.TryGetValue(ctx.ProviderLicense, out var q)
+                     && q.Any(json => json.Contains(focusValue, StringComparison.Ordinal) && json.Contains("\"ClaimResponse\"", StringComparison.Ordinal)));
 
         var response = new FhirTask
         {
@@ -587,6 +638,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
 
     private Bundle Poll(Context ctx, Bundle request)
     {
+        ProgressPended(ctx.ProviderLicense);
         var task = request.Entry.Select(e => e.Resource).OfType<FhirTask>().FirstOrDefault();
         var count = task?.Input.FirstOrDefault(i => i.Type?.Coding.Any(c => c.Code == "count") == true)?.Value switch
         {
@@ -618,13 +670,83 @@ public sealed class NphiesSandboxTransport : INphiesTransport
 
         if (_queues.TryGetValue(ctx.ProviderLicense, out var queue))
         {
-            for (var i = 0; i < count && queue.TryDequeue(out var json); i++)
+            foreach (var json in Take(queue, count, MessageTypes(task, "include-message-type"), MessageTypes(task, "exclude-message-type")))
             {
                 var inner = (Bundle)Parser.Parse<Resource>(json);
                 reply.Entry.Add(new Bundle.EntryComponent { FullUrl = "urn:uuid:" + inner.Id, Resource = inner });
             }
         }
         return reply;
+    }
+
+    /// <summary>
+    /// A communication from the provider. When it is about a request the payer pended, the payer now decides and the
+    /// response goes to the provider's queue.
+    /// </summary>
+    private Bundle Communication(Context ctx, Bundle request)
+    {
+        var communication = request.Entry.Select(e => e.Resource).OfType<Communication>().FirstOrDefault();
+        var about = communication?.About.Select(a => a.Identifier?.Value).FirstOrDefault(v => v != null);
+        if (about != null && _pended.TryRemove(about, out var pended))
+        {
+            Deliver(pended.ProviderLicense, pended.DeferredJson);
+            EnqueueFollowUps(new Context(pended.Request, pended.Header), pended.Claim, pended.Final);
+        }
+        return Message(ctx, NphiesMessageEvents.Acknowledgement, null, ctx.Header.Id);
+    }
+
+    /// <summary>
+    /// When set, the payer asks for more information (a CommunicationRequest) about each pended request and decides only
+    /// after the provider's communication (Authorization test case 2). Otherwise it decides before the next poll.
+    /// </summary>
+    public bool AskForInformationWhenPended { get; set; }
+
+    /// <summary>What the payer has done with the provider's pended requests by the time it polls.</summary>
+    private void ProgressPended(string providerLicense)
+    {
+        foreach (var (identifier, pended) in _pended.Where(p => p.Value.ProviderLicense == providerLicense).ToList())
+        {
+            if (!AskForInformationWhenPended)
+            {
+                if (!_pended.TryRemove(identifier, out _)) continue;
+                Deliver(providerLicense, pended.DeferredJson);
+                EnqueueFollowUps(new Context(pended.Request, pended.Header), pended.Claim, pended.Final);
+            }
+            else if (!pended.InformationRequested)
+            {
+                pended.InformationRequested = true;
+                Enqueue(providerLicense, Message(new Context(pended.Request, pended.Header), NphiesMessageEvents.CommunicationRequest, BuildCommunicationRequest(pended.Claim), null));
+            }
+        }
+    }
+
+    /// <summary>An unlisted drug (code 99999999999999): billed with the SFDA code alongside, and not covered by the sandbox payer.</summary>
+    private static bool IsUnlistedDrug(Claim.ItemComponent item) =>
+        item.ProductOrService?.Coding.Any(c => c.Code == "99999999999999") == true;
+
+    /// <summary>The message event codes a poll asks for or leaves out (Task.input include-message-type / exclude-message-type).</summary>
+    private static HashSet<string> MessageTypes(FhirTask? task, string inputType) =>
+        (task?.Input ?? new List<FhirTask.ParameterComponent>())
+            .Where(i => i.Type?.Coding.Any(c => c.Code == inputType) == true)
+            .Select(i => i.Value switch { Code c => c.Value, Coding c => c.Code, CodeableConcept cc => cc.Coding.FirstOrDefault()?.Code, FhirString s => s.Value, _ => null })
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)!;
+
+    /// <summary>Takes up to <paramref name="count"/> queued messages of the wanted types, oldest first; the others stay queued in order.</summary>
+    private static List<string> Take(ConcurrentQueue<string> queue, int count, HashSet<string> include, HashSet<string> exclude)
+    {
+        var all = new List<string>();
+        while (queue.TryDequeue(out var json)) all.Add(json);
+        var taken = new List<string>();
+        foreach (var json in all)
+        {
+            var eventCode = ((Bundle)Parser.Parse<Resource>(json)).Entry.Select(e => e.Resource).OfType<MessageHeader>().FirstOrDefault()?.Event is Coding c ? c.Code : null;
+            var wanted = (include.Count == 0 || (eventCode != null && include.Contains(eventCode)))
+                         && (eventCode is null || !exclude.Contains(eventCode));
+            if (wanted && taken.Count < count) taken.Add(json);
+            else queue.Enqueue(json);
+        }
+        return taken;
     }
 
     // ============================== helpers ==============================
