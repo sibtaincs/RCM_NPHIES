@@ -435,6 +435,8 @@ public sealed class RcmInputMapper : IRcmInputMapper
             ValueBoolean = s.BooleanValue,
             ValueQuantity = s.QuantityValue,
             ValueQuantityUnit = s.QuantityUnit,
+            Reason = string.IsNullOrWhiteSpace(s.ReasonCode) || RcmClaimRules.AbsenceReasonSystem(s.Category) is not { } reasonSystem
+                ? null : new NphiesCoding(reasonSystem, s.ReasonCode!.Trim()),
         };
         if (!string.IsNullOrWhiteSpace(s.CodeValue))
             info.Code = new NphiesConcept { Codings = { new NphiesCoding(s.CodeSystem ?? NphiesCodeSystems.ClaimInformationCategory, s.CodeValue!) } };

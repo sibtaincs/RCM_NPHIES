@@ -115,6 +115,8 @@ export interface ClaimEditSupportingInfo {
   stringValue?: string | null;
   quantityValue?: number | null;
   quantityUnit?: string | null;
+  /** Why a vital sign was not measured (absence-reason code), sent instead of a value. */
+  reasonCode?: string | null;
   dateValue?: string | null;
   booleanValue?: boolean | null;
   attachmentTitle?: string | null;
@@ -152,6 +154,7 @@ export type CorrectionAction =
   | 'update'
   | 'extend'
   | 'create-claim'
+  | 'add-services'
   | 'appeal';
 
 export interface ClaimCorrectionOption {

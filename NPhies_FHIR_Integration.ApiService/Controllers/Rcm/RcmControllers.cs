@@ -97,6 +97,12 @@ public sealed class RcmClaimsController : RcmControllerBase
     public async Task<ActionResult<SubmissionResultDto>> Submit(string id, CancellationToken ct)
         => Ok(await _service.SubmitAsync(id, ct));
 
+    /// <summary>Starts a new draft claim in the same episode, to bill services added after this claim was sent.</summary>
+    [HttpPost("{id}/add-services")]
+    [HasPermission(Permissions.ClaimsCreate)]
+    public async Task<ActionResult<SubmissionResultDto>> AddServices(string id, CancellationToken ct)
+        => Ok(await _service.AddServicesAsync(id, ct));
+
     [HttpPost("{id}/resubmit")]
     [HasPermission(Permissions.ClaimsSubmit)]
     public async Task<ActionResult<SubmissionResultDto>> Resubmit(string id, [FromBody] DerivedClaimRequestDto? request, CancellationToken ct)

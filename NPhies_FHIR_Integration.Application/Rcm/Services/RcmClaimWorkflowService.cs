@@ -32,6 +32,12 @@ public interface IRcmClaimWorkflowService
     /// <summary>Creates a claim from an approved prior authorization, carrying its preAuthRef.</summary>
     Task<SubmissionResultDto> CreateClaimFromPreAuthAsync(string preAuthId, DerivedClaimRequestDto request, CancellationToken ct = default);
 
+    /// <summary>
+    /// Starts a new draft claim in the same episode as a sent claim, to bill services added after it. It is a new claim,
+    /// not a resubmission: no related claim, and none of the earlier items.
+    /// </summary>
+    Task<SubmissionResultDto> AddServicesAsync(string claimId, CancellationToken ct = default);
+
     Task<RcmClaimSummaryDto> LinkPreAuthAsync(string claimId, LinkPreAuthDto request, CancellationToken ct = default);
 
     Task<BatchSubmitResultDto> SubmitBatchAsync(BatchSubmitRequestDto request, CancellationToken ct = default);
@@ -272,6 +278,18 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
         return await FinishDerivedAsync(clone, request, ct);
     }
 
+    public async Task<SubmissionResultDto> AddServicesAsync(string claimId, CancellationToken ct = default)
+    {
+        var source = await LoadForDerivationAsync(claimId, expectPreAuth: false, ct);
+        if (source.SubmittedAt is null)
+            throw RcmWorkflowException.Conflict("The claim has not been sent yet: add the services to it directly.");
+        if (source.NphiesStatus is RcmClaimStatus.Cancelled or RcmClaimStatus.Nullified)
+            throw RcmWorkflowException.Conflict($"The claim is {source.NphiesStatus}: correct it instead of adding services to its episode.");
+        // A new claim (new identifier, no related claim) in the same episode; the services are added in the editor.
+        var clone = await CloneAsync(source, "A", relationship: null, useOverride: null, ct, withoutItems: true);
+        return await FinishDerivedAsync(clone, new DerivedClaimRequestDto { Submit = false }, ct);
+    }
+
     public async Task<SubmissionResultDto> CreateClaimFromPreAuthAsync(string preAuthId, DerivedClaimRequestDto request, CancellationToken ct = default)
     {
         var source = await LoadForDerivationAsync(preAuthId, expectPreAuth: true, ct);
@@ -442,8 +460,9 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
     /// <summary>Deep-copies a claim (items, details, diagnoses, care team, supporting info, vision/oral rows) as a new draft version.</summary>
     /// <param name="relateTo">The claim NPHIES is told this one relates to; default: <paramref name="source"/>.</param>
     /// <param name="skipItemSequences">Items of the source to leave out of the copy.</param>
+    /// <param name="withoutItems">Copy the header only (episode, parties, diagnoses, care team, supporting info), not the items.</param>
     private async Task<Claim> CloneAsync(Claim source, string suffix, string? relationship, string? useOverride, CancellationToken ct,
-        Claim? relateTo = null, IReadOnlyCollection<int>? skipItemSequences = null)
+        Claim? relateTo = null, IReadOnlyCollection<int>? skipItemSequences = null, bool withoutItems = false)
     {
         var prefix = $"{source.ClaimNumber}-{suffix}";
         var existing = await _db.Claims.CountAsync(c => c.ClaimNumber.StartsWith(prefix), ct);
@@ -489,7 +508,8 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
             if (source.Items.All(i => skipped.Contains(i.Sequence))) throw RcmWorkflowException.Invalid("At least one item must remain. To drop every item, cancel the prior authorization.");
             clone.Total = source.Items.Where(i => !skipped.Contains(i.Sequence)).Sum(i => i.Net ?? 0m);
         }
-        foreach (var item in source.Items.Where(i => skipped is null || !skipped.Contains(i.Sequence)))
+        if (withoutItems) clone.Total = 0;
+        foreach (var item in source.Items.Where(i => !withoutItems && (skipped is null || !skipped.Contains(i.Sequence))))
         {
             var ni = (ClaimItem)_db.Entry(item).CurrentValues.ToObject();
             ni.Id = Guid.NewGuid().ToString();

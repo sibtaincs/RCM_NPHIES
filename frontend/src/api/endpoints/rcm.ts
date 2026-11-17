@@ -81,6 +81,8 @@ export const rcmApi = {
     submit: (id: string) => post<SubmissionResult>(`/rcm/claims/${id}/submit`),
     resubmit: (id: string, body: DerivedClaimRequest) =>
       post<SubmissionResult>(`/rcm/claims/${id}/resubmit`, body),
+    /** A new draft claim in the same episode, for services billed after this claim. */
+    addServices: (id: string) => post<SubmissionResult>(`/rcm/claims/${id}/add-services`),
     linkPreAuth: (id: string, body: LinkPreAuthRequest) =>
       post<RcmClaimSummary>(`/rcm/claims/${id}/link-preauth`, body),
     statusCheck: (id: string) => post<TaskResult>(`/rcm/claims/${id}/status-check`),
