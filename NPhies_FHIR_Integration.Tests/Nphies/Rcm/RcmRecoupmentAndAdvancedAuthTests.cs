@@ -153,7 +153,7 @@ public class RcmRecoupmentAndAdvancedAuthTests
 
     /// <summary>Synthetic advanced-authorization message derived from example 7b (structure per the IG profile).</summary>
     /// <summary>The same authorization sent again by the payer as a new message, with a reissue reason.</summary>
-    private static string Reissue(string json, string reason, bool newResponse)
+    internal static string Reissue(string json, string reason, bool newResponse)
     {
         var b = JsonNode.Parse(json)!;
         b["id"] = Guid.NewGuid().ToString();
@@ -290,7 +290,7 @@ public class RcmRecoupmentAndAdvancedAuthTests
             s.SendAsync(new SendCommunicationDto { AdvancedAuthorizationId = id, Texts = { "Again" } })), "Nothing to change on a cancelled authorization.");
     }
 
-    private static string BuildAdvancedAuthorization()
+    internal static string BuildAdvancedAuthorization()
     {
         var b = JsonNode.Parse(DocsExamples.ReadJson("7b - Claim Response.json"))!;
         b["id"] = Guid.NewGuid().ToString();

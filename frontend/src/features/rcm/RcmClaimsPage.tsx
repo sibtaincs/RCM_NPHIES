@@ -8,6 +8,7 @@ import {
   Dropdown,
   Form,
   Input,
+  InputNumber,
   List,
   Modal,
   Select,
@@ -21,7 +22,7 @@ import {
 } from 'antd';
 import type { MenuProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { EditOutlined, MoreOutlined, PaperClipOutlined, PlusOutlined, ReloadOutlined, SendOutlined, StarFilled, SyncOutlined } from '@ant-design/icons';
+import { EditOutlined, MinusCircleOutlined, MoreOutlined, PaperClipOutlined, PlusOutlined, ReloadOutlined, SendOutlined, StarFilled, SyncOutlined } from '@ant-design/icons';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rcmApi } from '@/api/endpoints/rcm';
 import { useGlobalFilters } from '@/hooks/useGlobalFilters';
@@ -92,6 +93,18 @@ export function RcmClaimsPage({ mode }: { mode: Mode }) {
     placeholderData: keepPreviousData,
   });
 
+  // The services of the prior authorization being updated or extended, for the remove and split pickers.
+  const changesItems = action?.kind === 'update' || action?.kind === 'extend';
+  const actionItems = useQuery({
+    queryKey: ['claim-edit', action?.claim.id],
+    queryFn: () => rcmApi.claims.getForEdit(action!.claim.id),
+    enabled: !!action && changesItems,
+  });
+  const itemOptions = (actionItems.data?.items ?? []).map((i) => ({
+    value: i.sequence,
+    label: `${i.sequence}. ${i.productOrServiceDisplay ?? i.productOrServiceCode} (qty ${i.quantity})`,
+  }));
+
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['rcm'] });
     void qc.invalidateQueries({ queryKey: ['claim-timeline'] });
@@ -103,6 +116,10 @@ export function RcmClaimsPage({ mode }: { mode: Mode }) {
         submit: values.submit !== false,
         reason: values.reason as string | undefined,
         newPeriodEnd: values.newPeriodEnd ? (values.newPeriodEnd as { format: (f: string) => string }).format('YYYY-MM-DD') : undefined,
+        removeItemSequences: (values.removeItemSequences as number[] | undefined) ?? [],
+        splitItems: ((values.splitItems as { sequence?: number; doneQuantity?: number }[] | undefined) ?? [])
+          .filter((s) => s?.sequence != null && s?.doneQuantity != null)
+          .map((s) => ({ sequence: s.sequence!, doneQuantity: s.doneQuantity! })),
       };
       const api = isClaim ? rcmApi.claims : rcmApi.preauths;
       switch (kind) {
@@ -461,6 +478,38 @@ export function RcmClaimsPage({ mode }: { mode: Mode }) {
                 <Form.Item name="newPeriodEnd" label="New validity end" rules={[{ required: true }]}>
                   <DatePicker style={{ width: '100%' }} />
                 </Form.Item>
+              )}
+              {(action.kind === 'update' || action.kind === 'extend') && (
+                <>
+                  <Form.Item
+                    name="removeItemSequences"
+                    label="Services to leave out"
+                    extra="Only once the payer has decided. While the request is still pending, cancel it and send a new one instead."
+                  >
+                    <Select mode="multiple" allowClear loading={actionItems.isFetching} options={itemOptions} placeholder="All services are sent again" />
+                  </Form.Item>
+                  <Typography.Text type="secondary">Services only partly done: they keep the quantity done and the rest becomes a new service.</Typography.Text>
+                  <Form.List name="splitItems">
+                    {(fields, { add, remove }) => (
+                      <>
+                        {fields.map((field) => (
+                          <Space key={field.key} align="baseline" style={{ display: 'flex', marginTop: 8 }}>
+                            <Form.Item name={[field.name, 'sequence']} rules={[{ required: true, message: 'Pick a service' }]} style={{ width: 300, marginBottom: 0 }}>
+                              <Select options={itemOptions} placeholder="Service" />
+                            </Form.Item>
+                            <Form.Item name={[field.name, 'doneQuantity']} rules={[{ required: true, message: 'Quantity done' }]} style={{ marginBottom: 0 }}>
+                              <InputNumber min={0.01} placeholder="Quantity done" />
+                            </Form.Item>
+                            <MinusCircleOutlined onClick={() => remove(field.name)} />
+                          </Space>
+                        ))}
+                        <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => add()} style={{ margin: '8px 0 16px' }}>
+                          Split a service
+                        </Button>
+                      </>
+                    )}
+                  </Form.List>
+                </>
               )}
               <Form.Item name="submit" valuePropName="checked">
                 <Checkbox>Send to NPHIES immediately</Checkbox>
