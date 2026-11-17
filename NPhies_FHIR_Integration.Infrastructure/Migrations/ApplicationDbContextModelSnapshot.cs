@@ -3820,6 +3820,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<int>("Sequence")
                         .HasColumnType("int");
 

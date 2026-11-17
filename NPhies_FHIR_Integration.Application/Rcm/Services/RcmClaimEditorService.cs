@@ -156,6 +156,7 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
                 StringValue = s.StringValue,
                 QuantityValue = s.QuantityValue,
                 QuantityUnit = s.QuantityUnit,
+                ReasonCode = s.ReasonCode,
                 DateValue = s.DateValue,
                 BooleanValue = s.BooleanValue,
                 AttachmentTitle = s.AttachmentTitle,
@@ -495,6 +496,7 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
             info.StringValue = Blank(src.StringValue);
             info.QuantityValue = src.QuantityValue;
             info.QuantityUnit = Blank(src.QuantityUnit);
+            info.ReasonCode = Blank(src.ReasonCode);
             info.DateValue = src.DateValue;
             info.BooleanValue = src.BooleanValue;
             info.AttachmentTitle = Blank(src.AttachmentTitle);
@@ -558,7 +560,8 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         var preAuths = await LoadPreAuthInfoAsync(new[] { claim }, ct);
         var sizes = await RcmDocumentService.LoadDocumentSizesAsync(_db, claim.SupportingInfo, ct);
         var eligibility = await LoadEligibilityInfoAsync(new[] { claim }, ct);
-        return Evaluate(claim, preAuths, sizes, _documentOptions, eligibility);
+        var duplicates = await LoadDuplicatesAsync(new[] { claim }, ct);
+        return Evaluate(claim, preAuths, sizes, _documentOptions, eligibility, duplicates);
     }
 
     public async Task<List<ClaimHealthDto>> CheckHealthBulkAsync(RcmClaimQuery query, bool problemsOnly, CancellationToken ct = default)
@@ -579,11 +582,57 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         var preAuths = await LoadPreAuthInfoAsync(claims, ct);
         var sizes = await RcmDocumentService.LoadDocumentSizesAsync(_db, claims.SelectMany(c => c.SupportingInfo), ct);
         var eligibility = await LoadEligibilityInfoAsync(claims, ct);
-        var results = claims.Select(c => Evaluate(c, preAuths, sizes, _documentOptions, eligibility)).ToList();
+        var duplicates = await LoadDuplicatesAsync(claims, ct);
+        var results = claims.Select(c => Evaluate(c, preAuths, sizes, _documentOptions, eligibility, duplicates)).ToList();
         return problemsOnly ? results.Where(r => r.Issues.Count > 0).ToList() : results;
     }
 
     private sealed record PreAuthInfo(string ClaimId, DateTime? PeriodEnd, decimal? Eligible, string? PatientId);
+
+    private static IEnumerable<int> SplitSequences(string? sequences) =>
+        (sequences ?? string.Empty).Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(v => int.TryParse(v, out var n) ? n : (int?)null).Where(n => n.HasValue).Select(n => n!.Value);
+
+    /// <summary>Statuses whose claims still count: a cancelled, nullified or replaced claim cannot be a duplicate.</summary>
+    private static readonly string[] NotBilled = { RcmClaimStatus.Cancelled, RcmClaimStatus.Nullified, RcmClaimStatus.Superseded, RcmClaimStatus.Error, RcmClaimStatus.ValidationFailed };
+
+    /// <summary>
+    /// For each claim (not prior authorization), the other claims of the same patient that bill a same service code on a
+    /// same date. Versions linked to it (resubmissions) are not duplicates of it.
+    /// </summary>
+    private async Task<Dictionary<string, List<string>>> LoadDuplicatesAsync(IReadOnlyCollection<Claim> claims, CancellationToken ct)
+    {
+        var result = new Dictionary<string, List<string>>();
+        var billing = claims.Where(c => !RcmInputMapper.IsPreAuth(c) && !string.IsNullOrWhiteSpace(c.PatientId)).ToList();
+        if (billing.Count == 0) return result;
+        var patientIds = billing.Select(c => c.PatientId).Distinct().ToList();
+        var ownIds = billing.Select(c => c.Id).ToHashSet();
+
+        // Joined on ClaimId: ClaimItem.Claim is not mapped to that key, so the navigation cannot be used in a query.
+        var others = await (
+            from i in _db.ClaimItems.AsNoTracking()
+            join c in _db.Claims.AsNoTracking() on i.ClaimId equals c.Id
+            where patientIds.Contains(c.PatientId) && c.Use == "claim" && (c.NphiesStatus == null || !NotBilled.Contains(c.NphiesStatus))
+            select new { i.ClaimId, c.PatientId, c.ClaimNumber, i.ProductOrServiceCode, Date = i.ServicedDate ?? c.ServicedPeriodStart ?? c.BillablePeriodStart })
+            .ToListAsync(ct);
+        var related = await _db.ClaimRelatedClaims.AsNoTracking()
+            .Where(r => r.ReferencedClaimId != null && (ownIds.Contains(r.ClaimId) || ownIds.Contains(r.ReferencedClaimId!)))
+            .Select(r => new { r.ClaimId, Other = r.ReferencedClaimId! }).ToListAsync(ct);
+
+        foreach (var claim in billing)
+        {
+            var linked = related.Where(r => r.ClaimId == claim.Id).Select(r => r.Other)
+                .Concat(related.Where(r => r.Other == claim.Id).Select(r => r.ClaimId)).ToHashSet();
+            var mine = claim.Items.Select(i => (Code: i.ProductOrServiceCode, Date: (i.ServicedDate ?? claim.ServicedPeriodStart ?? claim.BillablePeriodStart)?.Date))
+                .Where(x => x.Date.HasValue).ToHashSet();
+            var twins = others
+                .Where(o => o.ClaimId != claim.Id && o.PatientId == claim.PatientId && !linked.Contains(o.ClaimId)
+                            && mine.Contains((o.ProductOrServiceCode, o.Date?.Date)))
+                .Select(o => o.ClaimNumber).Distinct().OrderBy(n => n).ToList();
+            if (twins.Count > 0) result[claim.Id] = twins;
+        }
+        return result;
+    }
 
     private sealed record EligibilityInfo(bool? IsEligible, string? SiteEligibility, string? Disposition, DateTime CheckedAt, bool IsOffline);
 
@@ -653,7 +702,7 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         !string.IsNullOrWhiteSpace(s.DocumentId) || !string.IsNullOrWhiteSpace(s.AttachmentData) || !string.IsNullOrWhiteSpace(s.AttachmentUrl);
 
     private static ClaimHealthDto Evaluate(Claim c, Dictionary<string, PreAuthInfo> preAuths, IReadOnlyDictionary<string, long> documentSizes, RcmDocumentOptions documentOptions,
-        IReadOnlyDictionary<string, EligibilityInfo>? eligibility = null)
+        IReadOnlyDictionary<string, EligibilityInfo>? eligibility = null, IReadOnlyDictionary<string, List<string>>? duplicates = null)
     {
         var h = new ClaimHealthDto { ClaimId = c.Id, ClaimNumber = c.ClaimNumber };
         void Add(string severity, string code, string? field, string message) =>
@@ -697,10 +746,78 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
         if (type == "institutional" && c.EncounterId is null) Add("Warning", "ENCOUNTER_MISSING", "header.encounterId", "No encounter recorded; one will be derived from the sub-type and service period. Record the actual encounter for in-patient stays.");
         if (c.ClaimSubType == "ip" && c.EncounterId is null && type != "institutional") Add("Warning", "ENCOUNTER_MISSING", "header.encounterId", "In-patient records should reference an encounter.");
 
-        // IG 6.5: newborn prior authorizations and claims carry birth-weight on the birth encounter.
-        if (c.IsNewborn && !c.SupportingInfo.Any(s => string.Equals(s.Category, "birth-weight", StringComparison.OrdinalIgnoreCase)))
-            Add("Warning", "NEWBORN_BIRTH_WEIGHT", "supportingInfo",
-                "Newborn claim without birth-weight supporting info. NPHIES requires it for the birth encounter.");
+        // Newborn v1.2: a Z38 diagnosis, birth-weight in kg (required on institutional and professional requests) and
+        // services within 90 days of birth.
+        if (c.IsNewborn)
+        {
+            var birthWeight = c.SupportingInfo.FirstOrDefault(s => string.Equals(s.Category, "birth-weight", StringComparison.OrdinalIgnoreCase));
+            if (birthWeight is null)
+                Add(type is "institutional" or "professional" ? "Error" : "Warning", "NEWBORN_BIRTH_WEIGHT", "supportingInfo",
+                    "Newborn request without birth-weight supporting info. NPHIES requires it on institutional and professional requests.");
+            else if (birthWeight.QuantityValue is null || !string.Equals(birthWeight.QuantityUnit, "kg", StringComparison.Ordinal))
+                Add("Error", "NEWBORN_BIRTH_WEIGHT_UNIT", $"supportingInfo[{birthWeight.Sequence}].quantityUnit", "The birth weight must be a value in kg (UCUM code \"kg\").");
+            if (!c.Diagnoses.Any(d => RcmClaimRules.IsNewbornDiagnosis(d.DiagnosisCode)))
+                Add("Error", "NEWBORN_Z38", "diagnoses", "A newborn request needs one of the Z38.0 to Z38.8 diagnoses (liveborn infant by place of birth).");
+            if (c.Patient is { DateOfBirth: var born } && born != default)
+            {
+                var lastService = c.Items.Select(i => i.ServicedDate ?? i.ServicedPeriodEnd).Append(c.ServicedPeriodEnd ?? c.BillablePeriodEnd ?? c.ServicedPeriodStart)
+                    .Where(d => d.HasValue).Select(d => d!.Value).DefaultIfEmpty(c.CreatedDate).Max();
+                if (lastService.Date > born.Date.AddDays(RcmEligibilityService.NewbornWindowDays))
+                    Add("Error", "NEWBORN_WINDOW", "header.isNewborn",
+                        $"Services on {lastService:yyyy-MM-dd} are more than {RcmEligibilityService.NewbornWindowDays} days after the birth ({born:yyyy-MM-dd}). The baby needs its own policy.");
+            }
+        }
+
+        // Accidents: a work-related diagnosis needs accident type WPA and a road-traffic one MVA, and the other way round.
+        var diagnosisCodes = c.Diagnoses.Select(d => d.DiagnosisCode).ToList();
+        var accident = (c.AccidentType ?? string.Empty).Trim().ToUpperInvariant();
+        if (diagnosisCodes.Any(RcmClaimRules.IsWorkRelated) && accident != "WPA")
+            Add("Error", "ACCIDENT_WPA_REQUIRED", "header.accidentType", "A work-related diagnosis (Y96) requires the accident type WPA (workplace accident).");
+        if (accident == "WPA" && !diagnosisCodes.Any(RcmClaimRules.IsWorkRelated))
+            Add("Error", "ACCIDENT_WPA_DIAGNOSIS", "diagnoses", "Accident type WPA requires a work-related diagnosis (Y96).");
+        if (diagnosisCodes.Any(RcmClaimRules.IsRoadTraffic) && accident != "MVA")
+            Add("Error", "ACCIDENT_MVA_REQUIRED", "header.accidentType", "A road-traffic diagnosis requires the accident type MVA (motor vehicle accident).");
+        if (accident == "MVA" && !diagnosisCodes.Any(RcmClaimRules.IsRoadTraffic))
+            Add("Error", "ACCIDENT_MVA_DIAGNOSIS", "diagnoses", "Accident type MVA requires a road-traffic diagnosis from the NPHIES rta-diagnosis list.");
+
+        // Vital signs that were not measured are sent with an absence reason instead of a value.
+        foreach (var s in c.SupportingInfo.Where(s => RcmClaimRules.AbsenceReasons.ContainsKey(s.Category)))
+        {
+            var reasons = RcmClaimRules.AbsenceReasons[s.Category];
+            if (!string.IsNullOrWhiteSpace(s.ReasonCode) && !reasons.Codes.ContainsKey(s.ReasonCode.Trim()))
+                Add("Error", "VITAL_REASON_INVALID", $"supportingInfo[{s.Sequence}].reasonCode",
+                    $"'{s.ReasonCode}' is not a reason for a missing {s.Category}. Use {string.Join(", ", reasons.Codes.Select(r => $"{r.Key} ({r.Value})"))}.");
+            else if (s.QuantityValue is null && string.IsNullOrWhiteSpace(s.ReasonCode))
+                Add("Error", "VITAL_VALUE_MISSING", $"supportingInfo[{s.Sequence}].quantityValue",
+                    $"Supporting info #{s.Sequence} ({s.Category}) has no value. Enter the measurement, or the reason it was not measured.");
+        }
+
+        // Pharmacy: every medication item points at exactly one days-supply, given in days.
+        if (type == "pharmacy")
+        {
+            var daysSupply = c.SupportingInfo.Where(s => string.Equals(s.Category, "days-supply", StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var s in daysSupply.Where(s => s.QuantityValue is null || !string.Equals(s.QuantityUnit, "d", StringComparison.Ordinal)))
+                Add("Error", "DAYS_SUPPLY_UNIT", $"supportingInfo[{s.Sequence}].quantityUnit", $"Days-supply #{s.Sequence} must be a number of days (UCUM code \"d\").");
+            var daysSupplySequences = daysSupply.Select(s => s.Sequence).ToHashSet();
+            foreach (var i in c.Items.Where(i => string.Equals(i.ProductOrServiceSystem, RcmClaimRules.MedicationCodes, StringComparison.OrdinalIgnoreCase)))
+            {
+                var linked = SplitSequences(i.InformationSequence).Count(daysSupplySequences.Contains);
+                if (linked != 1)
+                    Add("Error", "DAYS_SUPPLY_LINK", $"items[{i.Sequence}].informationSequence",
+                        $"Medication item {i.Sequence} must point at exactly one days-supply entry (it points at {linked}).");
+            }
+        }
+
+        // NPHIES treats more than 300 items as a large claim: accepted now, validated later, and the result comes by poll.
+        if (c.Items.Count > Nphies.Constants.NphiesLimits.LargeClaimItemThreshold)
+            Add("Warning", "LARGE_CLAIM", "items",
+                $"{c.Items.Count} items: NPHIES treats this as a large claim. The answer will be \"queued\" and the result arrives by poll.");
+
+        // The same patient, service codes and dates on another claim: the payer rejects it as a duplicate (1677, 1678, N-DC-069).
+        if (duplicates != null && duplicates.TryGetValue(c.Id, out var twins) && twins.Count > 0)
+            Add("Warning", "DUPLICATE_CLAIM", "items",
+                $"Claim {string.Join(", ", twins)} already bills the same services on the same dates for this patient. The payer will reject a duplicate (1677). " +
+                "To bill more services in the same episode, use \"Add services\"; to change a sent claim, cancel it and correct it.");
 
         // NPHIES requires an episode (Claim) and a patient invoice (every item); defaults are sent when empty.
         if (string.IsNullOrWhiteSpace(c.EpisodeIdentifierValue))
@@ -967,6 +1084,8 @@ public sealed class RcmClaimEditorService : IRcmClaimEditorService
                     if (openDenials) Opt("appeal", "Appeal", "Dispute denied lines without changing the claim.");
                     Opt("nullify", "Nullify", "Reverse the claim (wrong patient, insurer or provider), then create a new one.");
                 }
+                // Services given after the claim: a new claim of the same episode, not a resubmission.
+                if (!preAuth) Opt("add-services", "Add services", "Bill services given after this claim in a new claim of the same episode.");
                 if (openRequests) Opt("communicate", "Answer payer request", "The payer asked for information.");
                 break;
         }

@@ -149,6 +149,8 @@ public sealed class ClaimEditSupportingInfoDto
     public string? QuantityUnit { get; set; }
     public DateTime? DateValue { get; set; }
     public bool? BooleanValue { get; set; }
+    /// <summary>Why a vital sign was not measured (absence-reason code), instead of a value.</summary>
+    public string? ReasonCode { get; set; }
     public string? AttachmentTitle { get; set; }
     public string? AttachmentContentType { get; set; }
     /// <summary>Base64 content. On read only a flag is returned (see <see cref="HasAttachment"/>); send null to keep the stored file.</summary>

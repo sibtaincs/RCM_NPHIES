@@ -70,6 +70,36 @@ const SUB_TYPES = [
 const PRIORITIES = ['normal', 'stat', 'deferred'];
 const DIAGNOSIS_TYPES = ['principal', 'secondary', 'admitting', 'discharge', 'differential'];
 const CARE_ROLES = ['primary', 'assist', 'supervisor', 'other'];
+/** Why a vital sign was not measured (the NPHIES *-absence-reason code systems), sent instead of a value. */
+const BLOOD_PRESSURE_REASONS = [
+  { value: '999', label: '999 Unknown' },
+  { value: '888', label: '888 Not measurable' },
+];
+const ABSENCE_REASONS: Record<string, { value: string; label: string }[]> = {
+  'vital-sign-systolic': BLOOD_PRESSURE_REASONS,
+  'vital-sign-diastolic': BLOOD_PRESSURE_REASONS,
+  'vital-sign-height': [{ value: '999.9', label: '999.9 Not measured' }],
+  'vital-sign-weight': [{ value: '999.9', label: '999.9 Not collected' }],
+  temperature: [
+    { value: '88', label: '88 Not obtained' },
+    { value: '99', label: '99 Unknown' },
+  ],
+  pulse: [
+    { value: '999', label: '999 Not stated' },
+    { value: '997', label: '997 Cardiac arrest' },
+    { value: '998', label: '998 Not recorded' },
+  ],
+  'respiratory-rate': [
+    { value: '88', label: '88 Not obtained' },
+    { value: '99', label: '99 Unknown' },
+    { value: '00', label: '00 Artificial ventilation' },
+  ],
+  'oxygen-saturation': [
+    { value: '999', label: '999 Unknown' },
+    { value: '888', label: '888 Not obtained' },
+  ],
+};
+
 const INFO_CATEGORIES = [
   'info',
   'onset',
@@ -690,6 +720,22 @@ export function ClaimEditorDrawer({
           { title: 'Text', render: (_, r, i) => <Input size="small" disabled={readOnly} style={{ width: 200 }} value={r.stringValue ?? ''} onChange={(e) => patchRow('supportingInfo', i, { stringValue: e.target.value || null })} /> },
           { title: 'Value', render: (_, r, i) => <InputNumber size="small" disabled={readOnly} style={{ width: 90 }} value={r.quantityValue ?? null} onChange={(v) => patchRow('supportingInfo', i, { quantityValue: v })} /> },
           { title: 'Unit', render: (_, r, i) => <Input size="small" disabled={readOnly} style={{ width: 70 }} value={r.quantityUnit ?? ''} onChange={(e) => patchRow('supportingInfo', i, { quantityUnit: e.target.value || null })} /> },
+          {
+            title: 'Not measured',
+            render: (_, r, i) =>
+              ABSENCE_REASONS[r.category] ? (
+                <Select
+                  size="small"
+                  allowClear
+                  disabled={readOnly}
+                  style={{ width: 170 }}
+                  placeholder="Measured"
+                  value={r.reasonCode ?? undefined}
+                  onChange={(v) => patchRow('supportingInfo', i, { reasonCode: v ?? null })}
+                  options={ABSENCE_REASONS[r.category]}
+                />
+              ) : null,
+          },
           { title: 'Date', render: (_, r, i) => <div style={{ width: 130 }}><DateField disabled={readOnly} value={r.dateValue} onChange={(v) => patchRow('supportingInfo', i, { dateValue: v })} /></div> },
           {
             title: 'Attachment',

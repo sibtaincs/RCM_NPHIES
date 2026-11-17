@@ -391,6 +391,7 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
     public static string DenialCategory(string? code)
     {
         var c = (code ?? string.Empty).ToUpperInvariant();
+        if (RcmClaimRules.DuplicateCodes.Contains(c)) return "Duplicate";
         if (c.StartsWith("MN")) return "MedicalNecessity";
         if (c.StartsWith("BE")) return "BillingError";
         if (c.StartsWith("CV")) return "Coverage";

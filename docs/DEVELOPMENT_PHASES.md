@@ -341,6 +341,11 @@ CI builds and tests, the repository is cleaned up, and the status is honest. See
 
 **Done when** all Claims V4.0 test cases pass, and every seeded claim passes `Enforce` validation.
 
+**Status: part 1 implemented** on `phase-5/claims` (tests in `RcmClaimRulesTests`).
+- Done: claim-health checks for the accident type (WPA for Y96, MVA for the `rta-diagnosis` codes, both ways), newborns (Z38 diagnosis, birth-weight in kg, required on institutional and professional, services within 90 days), vital signs not measured (`ReasonCode`, sent as `supportingInfo.reason` with the matching absence-reason code system), pharmacy days-supply (exactly one per medication item, in days), large claims (more than 300 items) and duplicates (same patient, service code and date on another claim; payer codes 1677, 1678 and N-DC-069 count as Duplicate denials); "Add services" (a new draft claim in the same episode, `POST api/rcm/claims/{id}/add-services`). Immutability and "correct" already worked: a sent claim is read-only, and correcting means cancel, then "Correct & resubmit" with a new identifier.
+- Found, not fixed: the model maps `ClaimItem.Claim` to a shadow key `ClaimId1` instead of `ClaimId`, so queries cannot use that navigation (the duplicate check joins on `ClaimId`). Fixing it needs a migration that drops the column.
+- Still open: the nine Claims V4.0 onboarding cases, `Enforce` validation of the seeded claims, matching deferred batch responses by the batch extensions, and choosing an open episode in the editor.
+
 ## Phase 6: denials, communications and appeals (track B5)
 | Item | Gap | Work |
 |---|---|---|

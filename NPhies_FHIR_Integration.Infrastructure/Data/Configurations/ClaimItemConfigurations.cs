@@ -125,6 +125,7 @@ public class ClaimSupportingInfoConfiguration : IEntityTypeConfiguration<ClaimSu
 {
     public void Configure(EntityTypeBuilder<ClaimSupportingInfo> entity)
     {
+        entity.Property(e => e.ReasonCode).HasMaxLength(20);
         entity.HasKey(c => c.Id);
 entity.Property(c => c.ClaimId).IsRequired().HasMaxLength(100);
      entity.Property(c => c.Sequence).IsRequired();

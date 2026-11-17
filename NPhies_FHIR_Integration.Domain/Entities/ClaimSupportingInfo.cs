@@ -78,6 +78,12 @@ public class ClaimSupportingInfo : BaseEntity
     public bool? BooleanValue { get; set; }
 
     /// <summary>
+    /// Why a vital sign was not measured: a code from its absence-reason CodeSystem, sent in supportingInfo.reason instead
+    /// of a value (for example 888 "not measurable" for blood pressure).
+    /// </summary>
+    public string? ReasonCode { get; set; }
+
+    /// <summary>
   /// Notes/remarks for this supporting info
     /// </summary>
     public string? Notes { get; set; }

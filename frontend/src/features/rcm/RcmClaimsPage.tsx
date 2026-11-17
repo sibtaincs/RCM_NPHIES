@@ -161,6 +161,17 @@ export function RcmClaimsPage({ mode }: { mode: Mode }) {
     onError: (e, { kind }) => showError(`${kind} failed`, e),
   });
 
+  /** A new draft claim in the same episode, for services billed after this claim; it opens in the editor. */
+  const addServices = useMutation({
+    mutationFn: (claim: RcmClaimSummary) => rcmApi.claims.addServices(claim.id),
+    onSuccess: (r) => {
+      invalidate();
+      void message.success(`New claim ${r.claimNumber} in the same episode: add the services and submit it.`);
+      setEditor({ id: r.claimId });
+    },
+    onError: (e) => showError('Could not start a claim for more services', e),
+  });
+
   const batch = useMutation({
     mutationFn: (batchIdentifier?: string) => rcmApi.batches.submit({ claimIds: selectedIds, batchIdentifier }),
     onSuccess: (r) => {
@@ -228,6 +239,8 @@ export function RcmClaimsPage({ mode }: { mode: Mode }) {
         return derived('extend');
       case 'create-claim':
         return derived('toClaim');
+      case 'add-services':
+        return addServices.mutate(claim);
       case 'communicate':
         return navigate('/rcm/communications');
       case 'appeal':
@@ -248,6 +261,7 @@ export function RcmClaimsPage({ mode }: { mode: Mode }) {
     if (isClaim) {
       items.push(
         { key: 'resubmit', label: 'Resubmit (related)', disabled: !canSubmit },
+        { key: 'add-services', label: 'Add services (same episode)', disabled: editable || !can(PERMISSIONS.ClaimsCreate) },
         { key: 'link', label: 'Link pre-authorization', disabled: !can(PERMISSIONS.ClaimsUpdate) },
       );
     } else {
@@ -347,6 +361,7 @@ export function RcmClaimsPage({ mode }: { mode: Mode }) {
               if (key === 'edit') return setEditor({ id: r.id });
               if (key === 'correct') return setCorrecting(r);
               if (key === 'documents') return setDocsFor(r);
+              if (key === 'add-services') return addServices.mutate(r);
               startAction(key as ActionKind, r);
             },
           }}
