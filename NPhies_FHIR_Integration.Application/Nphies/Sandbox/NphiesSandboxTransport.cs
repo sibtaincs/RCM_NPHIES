@@ -343,8 +343,22 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     private Bundle Adjudicate(Context ctx, Bundle request)
     {
         var claim = request.Entry.Select(e => e.Resource).OfType<Claim>().First();
-        var decision = Decide(claim);
         var responseEvent = claim.Use == ClaimUseCode.Preauthorization ? NphiesMessageEvents.PriorAuthResponse : NphiesMessageEvents.ClaimResponse;
+
+        // The payer has no member with this identity (Claims test case 5): an error answer, not adjudicated.
+        if (request.Entry.Select(e => e.Resource).OfType<Patient>().SelectMany(p => p.Identifier).Any(i => i.Value == UnknownMemberId))
+        {
+            var error = NewClaimResponse(claim, "error");
+            error.Outcome = ClaimProcessingCodes.Error;
+            error.Disposition = $"The entered identity number ({UnknownMemberId}) does not exist in our system.";
+            error.Error.Add(new ClaimResponse.ErrorComponent
+            {
+                Code = new CodeableConcept(NphiesCodeSystems.AdjudicationError, "1658", "No member found with the supplied patient credentials", null),
+            });
+            return Message(ctx, responseEvent, error, ctx.Header.Id);
+        }
+
+        var decision = Decide(claim);
 
         // NPHIES answers for the payer when the claim is large or the payer is offline; the payer's answer comes by poll.
         var largeClaim = claim.Item.Count > LargeClaimItemThreshold;
@@ -387,8 +401,16 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             var claim = inner.Entry.Select(e => e.Resource).OfType<Claim>().FirstOrDefault();
             if (claim is null) continue;
             var innerHeader = inner.Entry.Select(e => e.Resource).OfType<MessageHeader>().FirstOrDefault();
-            var decision = Decide(claim) == Decision.Queued ? Decision.Approved : Decide(claim);
-            var response = BuildClaimResponse(claim, decision);
+            var response = BuildClaimResponse(claim, DecideFinal(claim));
+            // The payer first acknowledges each claim as queued, then sends its decision; both carry the batch extensions.
+            var queued = BuildQueuedResponse(claim);
+            foreach (var url in new[] { NphiesExtensions.BatchIdentifier, NphiesExtensions.BatchNumber, NphiesExtensions.BatchPeriod })
+                if (claim.GetExtension(url) is { } batchExtension)
+                {
+                    queued.Extension.Add((Extension)batchExtension.DeepCopy());
+                    response.Extension.Add((Extension)batchExtension.DeepCopy());
+                }
+            Enqueue(ctx.ProviderLicense, Message(ctx, NphiesMessageEvents.ClaimResponse, queued, innerHeader?.Id ?? ctx.Header.Id));
             Enqueue(ctx.ProviderLicense, Message(ctx, NphiesMessageEvents.ClaimResponse, response, innerHeader?.Id ?? ctx.Header.Id));
             EnqueueFollowUps(ctx, claim, response);
         }
@@ -397,7 +419,13 @@ public sealed class NphiesSandboxTransport : INphiesTransport
 
     private enum Decision { Approved, Partial, Rejected, Queued }
 
-    private static Decision Decide(Claim claim)
+    /// <summary>
+    /// When set ("approved", "partial" or "rejected"), the payer's final decision on every claim and prior authorization,
+    /// for test cases that expect a given outcome (Claims test cases V4.0 #2, #3 and #8).
+    /// </summary>
+    public string? DecideAs { get; set; }
+
+    private Decision Decide(Claim claim)
     {
         // Priority "deferred" asks for a pended answer: queued now, the decision by poll (Authorization test cases V6.0).
         if (claim.Priority?.Coding.Any(c => c.Code == "deferred") == true) return Decision.Queued;
@@ -405,10 +433,16 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     }
 
     /// <summary>The payer's decision once it adjudicates; never "queued".</summary>
-    private static Decision DecideFinal(Claim claim)
+    private Decision DecideFinal(Claim claim)
     {
-        // An unlisted drug code is not covered: that line is rejected and the rest approved.
-        if (claim.Item.Count > 1 && claim.Item.Any(IsUnlistedDrug)) return Decision.Partial;
+        switch (DecideAs?.ToLowerInvariant())
+        {
+            case "approved": return Decision.Approved;
+            case "partial": return Decision.Partial;
+            case "rejected": return Decision.Rejected;
+        }
+        // An unlisted drug code is not authorized: that line is rejected and the rest approved (Authorization test case 5).
+        if (claim.Use == ClaimUseCode.Preauthorization && claim.Item.Count > 1 && claim.Item.Any(IsUnlistedDrug)) return Decision.Partial;
         // Resubmissions/appeals/updates (Claim.related) are approved so the appeal flow can be demonstrated end to end.
         if (claim.Related.Count > 0) return Decision.Approved;
         return (Hash(Key(claim)) % 10) switch

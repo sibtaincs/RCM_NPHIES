@@ -45,10 +45,13 @@ public sealed class NphiesProfileValidator : INphiesProfileValidator
     /// with the intended expression instead. BV-00036 ("No Claim item detail provided when Claim item package = true")
     /// is published as <c>a implies b implies detail.exists().not()</c>, which (left-associative) rejects packages
     /// that do carry details, e.g. docs example "19 - Shadow billing".
+    /// BV-00221 is published as <c>focus.count() &lt;= 1</c>, but a batch-request MessageHeader has one focus per claim
+    /// bundle (docs example "16 - Batch request", which declares the same message-header profile).
     /// </summary>
     private static readonly Dictionary<string, string> CorrectedInvariants = new(StringComparer.Ordinal)
     {
         ["BV-00036"] = "extension('" + Constants.NphiesExtensions.Package + "').where(value = true).exists() implies detail.exists()",
+        ["BV-00221"] = "event.code = '" + Constants.NphiesMessageEvents.BatchRequest + "' or focus.count() <= 1",
     };
 
     private readonly ConcurrentDictionary<string, ProfileIndex> _indexes = new(StringComparer.Ordinal);
