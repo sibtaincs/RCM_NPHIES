@@ -123,13 +123,20 @@ public class AuthorizationOnboardingCasesTests
         Assert.IsNotNull(first.Entry.Select(e => e.Resource).OfType<Encounter>().Single().Period?.Start, "The encounter has a start.");
         Assert.IsTrue(claim.Item.Any(i => (i.GetExtension(NphiesExtensions.Package)?.Value as FhirBoolean)?.Value == true), "At least one package item.");
 
-        // The provider writes to the payer before it decides (free text).
+        // The provider writes to the payer before it decides: free text about the request and about its first service
+        // (extension-ClaimItemSequence, ClaimItem guide V1.1).
+        var firstService = claim.Item.Min(i => i.Sequence)!.Value;
         var communication = await _host.RunAsync<IRcmCommunicationService, CommunicationDto>(s => s.SendAsync(new SendCommunicationDto
         {
             ClaimId = pa.Id,
             Texts = { "Coronary angiography confirms triple vessel disease; surgery is scheduled." },
+            Items = { new CommunicationItemNoteDto { Sequence = firstService, Text = "The operating room is booked for this service." } },
         }));
         CollectionAssert.AreEqual(Array.Empty<string>(), communication.Errors);
+        CollectionAssert.AreEqual(new[] { firstService }, communication.ItemSequences);
+        var payloads = Sent("communication").Entry.Select(e => e.Resource).OfType<Communication>().Single().Payload;
+        Assert.IsNull(payloads[0].GetExtension(NphiesExtensions.ClaimItemSequence), "The first text is about the whole request.");
+        Assert.AreEqual(firstService, (payloads[1].GetExtension(NphiesExtensions.ClaimItemSequence)?.Value as PositiveInt)?.Value);
 
         var poll = await PollAsync();
         CollectionAssert.Contains(poll.ClaimIds, pa.Id);

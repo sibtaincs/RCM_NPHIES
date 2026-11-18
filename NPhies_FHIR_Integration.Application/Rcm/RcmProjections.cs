@@ -33,6 +33,19 @@ public static class RcmProjections
         catch (JsonException) { return json; }
     }
 
+    /// <summary>Comma-separated item sequences as stored on communications, distinct and ascending.</summary>
+    public static List<int> ParseSequences(string? csv) =>
+        string.IsNullOrWhiteSpace(csv)
+            ? new List<int>()
+            : csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => int.TryParse(s, out var n) ? n : 0).Where(n => n > 0).Distinct().Order().ToList();
+
+    public static string? FormatSequences(IEnumerable<int> sequences)
+    {
+        var list = sequences.Where(n => n > 0).Distinct().Order().ToList();
+        return list.Count == 0 ? null : string.Join(",", list);
+    }
+
     public static RcmClaimSummaryDto ToSummary(Claim c, string? preAuthRef = null, decimal? approvedTax = null)
     {
         var dto = ToSummaryCore(c, preAuthRef);
@@ -84,6 +97,7 @@ public static class RcmProjections
         Outcome = r.Outcome,
         AdjudicationOutcome = r.AdjudicationOutcome,
         Disposition = r.Disposition,
+        ReissueReason = r.ReissueReason,
         PreAuthRef = r.PreAuthRef,
         PreAuthPeriodStart = r.PreAuthPeriodStart,
         PreAuthPeriodEnd = r.PreAuthPeriodEnd,
@@ -173,6 +187,7 @@ public static class RcmProjections
         PayloadText = r.PayloadContent,
         Payloads = Json(r.PayloadsJson),
         Reason = r.Reason,
+        ItemSequences = ParseSequences(r.ItemSequences),
         ReceivedAt = r.ReceivedAt ?? r.CreatedAt,
         RespondedCommunicationId = r.RespondedCommunicationId,
         RespondedAt = r.RespondedAt,
@@ -190,6 +205,8 @@ public static class RcmProjections
         CommunicationRequestId = c.CommunicationRequestId,
         PayloadText = c.PayloadContent,
         Payloads = Json(c.PayloadsJson),
+        ReasonCode = c.ReasonCode,
+        ItemSequences = ParseSequences(c.ItemSequences),
         ProcessingStatus = c.ProcessingStatus,
         SentAt = c.SentAt,
         CreatedAt = c.CreatedAt,

@@ -443,6 +443,8 @@ public sealed class CommunicationPayloadInput
 {
     public string? ContentString { get; set; }
     public AttachmentInput? ContentAttachment { get; set; }
+    /// <summary>The claim item (Claim.item.sequence of the claim in <c>about</c>) this payload is about; sent as <c>extension-ClaimItemSequence</c>.</summary>
+    public int? ClaimItemSequence { get; set; }
 }
 
 /// <summary>Input for a communication message (solicited when <see cref="BasedOnCommunicationRequest"/> is set).</summary>

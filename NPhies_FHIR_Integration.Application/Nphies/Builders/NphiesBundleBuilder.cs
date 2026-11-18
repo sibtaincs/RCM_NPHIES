@@ -220,7 +220,13 @@ public sealed class NphiesBundleBuilder : INphiesBundleBuilder
             DataType content = payload.ContentAttachment != null
                 ? Attachment(payload.ContentAttachment)
                 : new FhirString(payload.ContentString ?? string.Empty);
-            communication.Payload.Add(new Communication.PayloadComponent { Content = content });
+            var component = new Communication.PayloadComponent { Content = content };
+            if (payload.ClaimItemSequence is { } sequence)
+            {
+                if (sequence < 1) throw new ArgumentException($"ClaimItemSequence must be a positive item sequence, not {sequence}.");
+                component.Extension.Add(new Extension(NphiesExtensions.ClaimItemSequence, new PositiveInt(sequence)));
+            }
+            communication.Payload.Add(component);
         }
 
         var focus = ctx.AddFirst(communication);

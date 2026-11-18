@@ -191,7 +191,18 @@ public sealed class NphiesCommunicationRequestResult
     public string? AboutClaimIdentifierSystem { get; init; }
     public List<string> PayloadText { get; init; } = new();
     public List<Attachment> PayloadAttachments { get; init; } = new();
+    /// <summary>Every payload in order, with the claim item it refers to (<c>extension-ClaimItemSequence</c>), if any.</summary>
+    public List<NphiesCommunicationPayload> Payloads { get; init; } = new();
+    /// <summary>The distinct claim items the payloads refer to, in ascending order.</summary>
+    public List<int> ItemSequences => Payloads.Where(p => p.ClaimItemSequence.HasValue).Select(p => p.ClaimItemSequence!.Value).Distinct().Order().ToList();
     public string? Reason { get; init; }
+}
+
+public sealed class NphiesCommunicationPayload
+{
+    public string? Text { get; init; }
+    public Attachment? Attachment { get; init; }
+    public int? ClaimItemSequence { get; init; }
 }
 
 /// <summary>

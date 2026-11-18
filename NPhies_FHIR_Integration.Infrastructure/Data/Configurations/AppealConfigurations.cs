@@ -40,6 +40,8 @@ public class AppealRequestConfiguration : IEntityTypeConfiguration<AppealRequest
         entity.Property(a => a.WithdrawnDate);
         entity.Property(a => a.WithdrawalReason).HasMaxLength(1000);
         entity.Property(a => a.InternalReferenceNumber).HasMaxLength(100);
+        entity.Property(a => a.AppealMethod).IsRequired().HasMaxLength(30).HasDefaultValue("Resubmission");
+        entity.Property(a => a.CommunicationId).HasMaxLength(100);
         entity.Property(a => a.Notes).HasMaxLength(2000);
         entity.Property(a => a.LastStatusUpdateDate).IsRequired();
 

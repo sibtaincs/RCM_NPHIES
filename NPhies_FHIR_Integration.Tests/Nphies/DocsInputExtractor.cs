@@ -1,6 +1,7 @@
 using Hl7.Fhir.Model;
 using NPhies_FHIR_Integration.Application.Nphies.Constants;
 using NPhies_FHIR_Integration.Application.Nphies.Models;
+using NPhies_FHIR_Integration.Application.Nphies.Parsing;
 using FhirTask = Hl7.Fhir.Model.Task;
 
 namespace NPhies_FHIR_Integration.Tests.Nphies;
@@ -224,6 +225,7 @@ internal static class DocsInputExtractor
         {
             ContentString = (p.Content as FhirString)?.Value,
             ContentAttachment = Attachment(p.Content as Attachment),
+            ClaimItemSequence = NphiesResponseParser.ClaimItemSequence(p),
         }).ToList();
         return input;
     }

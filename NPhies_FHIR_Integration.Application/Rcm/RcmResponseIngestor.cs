@@ -209,6 +209,7 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         claimResponse.Outcome = adj.Outcome;
         claimResponse.AdjudicationOutcome = adj.AdjudicationOutcome;
         claimResponse.Disposition = Truncate(adj.Disposition, 1000);
+        claimResponse.ReissueReason = Truncate(adj.ReissueReason, 30);
         claimResponse.ResponseMessageId = response.MessageId;
         claimResponse.ReceivedAt = DateTime.UtcNow;
         claimResponse.TotalSubmitted = adj.TotalOf("submitted");
@@ -364,7 +365,103 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
                 claimResponse.TotalSubmitted ?? claim.Total, claimResponse.TotalSubmitted ?? claim.Total, deadline));
         }
 
+        await DecideSameClaimAppealsAsync(claim, denials, ct);
         _db.ClaimDenials.AddRange(denials);
+    }
+
+    /// <summary>
+    /// A final adjudication of a claim with services under a re-adjudication appeal (a communication about the same
+    /// claim, Claim Re-submission guide) decides them: a service the payer no longer denies is Overturned; one it still
+    /// denies is Upheld, and stays the record of that denial instead of a new Open one. When the payer now denies less,
+    /// the row is split into the Overturned (recovered) part and an Upheld row for what is left.
+    /// </summary>
+    /// <param name="denials">The denials of the new adjudication; those that continue an appealed denial are taken out.</param>
+    private async Task DecideSameClaimAppealsAsync(ClaimEntity claim, List<ClaimDenial> denials, CancellationToken ct)
+    {
+        var carried = await CarriedDenialsAsync(claim.Id, RcmDenialStatus.Appealed, RcmDenialStatus.Upheld, ct);
+        if (carried.Count == 0) return;
+
+        var consumed = new HashSet<ClaimDenial>();
+        foreach (var d in carried)
+        {
+            var next = denials.FirstOrDefault(n => n.ItemSequence == d.ItemSequence && !consumed.Contains(n));
+            var appealedNow = d.Status == RcmDenialStatus.Appealed;
+            if (next is null)
+            {
+                // Taken by an earlier row of the same service, or no longer denied.
+                d.Status = denials.Any(n => n.ItemSequence == d.ItemSequence) ? RcmDenialStatus.Upheld : RcmDenialStatus.Overturned;
+            }
+            else
+            {
+                consumed.Add(next);
+                if (next.DeniedAmount < d.DeniedAmount)
+                {
+                    next.Status = RcmDenialStatus.Upheld;
+                    next.AppealRequestId = d.AppealRequestId;
+                    d.DeniedAmount -= next.DeniedAmount;
+                    d.Status = RcmDenialStatus.Overturned;
+                    _db.ClaimDenials.Add(next);
+                }
+                else
+                {
+                    d.Status = RcmDenialStatus.Upheld;
+                    d.ClaimResponseId = next.ClaimResponseId;
+                    d.ReasonCode = next.ReasonCode;
+                    d.ReasonDisplay = next.ReasonDisplay;
+                    d.Category = next.Category;
+                    d.SubmittedAmount = next.SubmittedAmount;
+                    d.DeniedAmount = next.DeniedAmount;
+                    // A further appeal after the payer's answer gets a fresh window.
+                    if (appealedNow) d.AppealDeadline = next.AppealDeadline;
+                }
+            }
+            d.UpdatedAt = DateTime.UtcNow;
+        }
+        denials.RemoveAll(consumed.Contains);
+        await DecideAppealsAsync(carried.Select(d => d.AppealRequestId!).Distinct().ToList(),
+            $"Reissued response for claim {claim.ClaimNumber}: {claim.AdjudicationOutcome ?? claim.NphiesStatus}.", claim.ApprovedAmount, ct);
+    }
+
+    /// <summary>
+    /// Denials of <paramref name="claimId"/> in <paramref name="statuses"/> that belong to a re-adjudication appeal in
+    /// the same claim (not to a resubmission).
+    /// </summary>
+    private async Task<List<ClaimDenial>> CarriedDenialsAsync(string claimId, string status1, string? status2, CancellationToken ct)
+    {
+        var appealIds = await _db.AppealRequests.Where(a => a.ClaimId == claimId && a.AppealMethod == RcmAppealMethod.Communication && !a.IsWithdrawn)
+            .Select(a => a.Id).ToListAsync(ct);
+        if (appealIds.Count == 0) return new List<ClaimDenial>();
+        return await _db.ClaimDenials
+            .Where(d => d.ClaimId == claimId && d.ResubmissionClaimId == null && d.AppealRequestId != null && appealIds.Contains(d.AppealRequestId)
+                        && (d.Status == status1 || d.Status == status2))
+            .OrderBy(d => d.ItemSequence).ThenBy(d => d.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>Sets the outcome of each appeal from its denials: all Overturned, some recovered, or Upheld.</summary>
+    private async Task DecideAppealsAsync(List<string> appealIds, string explanation, decimal? approvedAmount, CancellationToken ct)
+    {
+        if (appealIds.Count == 0) return;
+        // Queries return the tracked instances, so the changes made above count; rows split off above are not stored yet.
+        var stored = await _db.ClaimDenials.Where(d => d.AppealRequestId != null && appealIds.Contains(d.AppealRequestId)).ToListAsync(ct);
+        var added = _db.ClaimDenials.Local.Where(d => _db.Entry(d).State == EntityState.Added && d.AppealRequestId != null && appealIds.Contains(d.AppealRequestId));
+        var rows = stored.Where(d => _db.Entry(d).State != EntityState.Deleted).Concat(added).Distinct().ToList();
+        foreach (var appeal in await _db.AppealRequests.Where(a => appealIds.Contains(a.Id)).ToListAsync(ct))
+        {
+            var mine = rows.Where(d => d.AppealRequestId == appeal.Id).ToList();
+            if (mine.Any(d => d.Status == RcmDenialStatus.Appealed)) continue; // services still waiting for the payer.
+            var recovered = mine.Where(d => d.Status == RcmDenialStatus.Overturned).Sum(d => d.DeniedAmount);
+            var upheld = mine.Where(d => d.Status == RcmDenialStatus.Upheld).Sum(d => d.DeniedAmount);
+            var outcome = upheld == 0m && recovered > 0m ? "Overturned" : recovered > 0m ? "PartiallyOverturned" : "Upheld";
+            if (appeal.AppealStatus == "Decided" && appeal.AppealOutcome == outcome) continue;
+            appeal.AppealOutcome = outcome;
+            appeal.AppealStatus = "Decided";
+            appeal.ApprovedAmount = approvedAmount;
+            appeal.ReviewCompletedDate = DateTime.UtcNow;
+            appeal.LastStatusUpdateDate = DateTime.UtcNow;
+            appeal.DecisionExplanation = Truncate(explanation, 2000);
+            _db.AppealStatusHistories.Add(new AppealStatusHistory { AppealId = appeal.Id, Status = "Decided", ChangedBy = "nphies", ChangeReason = outcome });
+        }
     }
 
     private static ClaimDenial NewDenial(ClaimEntity claim, ClaimResponseEntity response, int? seq, string code, string? display, decimal submitted, decimal denied, DateTime deadline) => new()
@@ -731,9 +828,12 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
             PayloadsJson = JsonSerializer.Serialize(new
             {
                 text = cr.PayloadText,
-                attachments = cr.PayloadAttachments.Select(a => new { a.ContentType, a.Title, a.Url, size = a.Data?.Length }),
+                items = cr.Payloads.Where(p => p.ClaimItemSequence.HasValue && p.Text != null).Select(p => new { sequence = p.ClaimItemSequence, text = p.Text }),
+                attachments = cr.Payloads.Where(p => p.Attachment != null)
+                    .Select(p => new { p.Attachment!.ContentType, p.Attachment.Title, p.Attachment.Url, size = p.Attachment.Data?.Length, itemSequence = p.ClaimItemSequence }),
             }),
             Reason = cr.Reason,
+            ItemSequences = RcmProjections.FormatSequences(cr.ItemSequences),
             ClaimId = claim?.Id,
             SubjectPatientId = claim?.PatientId,
             SenderId = claim?.InsurerId,
@@ -743,7 +843,34 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
             FhirCommunicationRequestJson = resource is null ? null : Serializer.SerializeToString(resource),
         };
         _db.CommunicationRequests.Add(entity);
+
+        // Claim Re-submission guide, step 4.2: the payer explains in a notification why it keeps the denial.
+        if (claim != null && NphiesCommunicationReasons.Normalize(cr.Reason) == NphiesCommunicationReasons.ReAdjudication
+            && string.Equals(cr.Category, "notification", StringComparison.OrdinalIgnoreCase))
+            await UpholdReAdjudicationAsync(claim, cr.ItemSequences, cr.PayloadText, ct);
         return (RcmEntityTypes.CommunicationRequest, entity.Id);
+    }
+
+    /// <summary>
+    /// The payer declined to change its decision on services under a re-adjudication appeal: they are Upheld (all of
+    /// them when the notification names no service) and keep their denial, with a fresh window for a further appeal.
+    /// </summary>
+    private async Task UpholdReAdjudicationAsync(ClaimEntity claim, List<int> sequences, List<string> texts, CancellationToken ct)
+    {
+        var appealed = await CarriedDenialsAsync(claim.Id, RcmDenialStatus.Appealed, null, ct);
+        var named = sequences.Count == 0 ? appealed : appealed.Where(d => d.ItemSequence.HasValue && sequences.Contains(d.ItemSequence.Value)).ToList();
+        if (named.Count == 0) return;
+        var deadline = DateTime.UtcNow.Date.AddDays(_options.AppealWindowDays);
+        var why = texts.Count == 0 ? null : string.Join(" ", texts);
+        foreach (var d in named)
+        {
+            d.Status = RcmDenialStatus.Upheld;
+            d.AppealDeadline = deadline;
+            if (why != null) d.Notes = Truncate(string.IsNullOrWhiteSpace(d.Notes) ? $"Payer: {why}" : $"{d.Notes}\nPayer: {why}", 2000);
+            d.UpdatedAt = DateTime.UtcNow;
+        }
+        await DecideAppealsAsync(named.Select(d => d.AppealRequestId!).Distinct().ToList(),
+            why ?? $"The payer kept its decision on claim {claim.ClaimNumber}.", claim.ApprovedAmount, ct);
     }
 
     // ===================== Eligibility =====================

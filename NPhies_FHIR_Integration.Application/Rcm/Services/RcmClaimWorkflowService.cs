@@ -134,9 +134,11 @@ public sealed class RcmClaimWorkflowService : IRcmClaimWorkflowService
 
         var originals = claim.RelatedClaims.Where(r => r.ReferencedClaimId != null && r.Relationship is "prior" or "extend")
             .Select(r => r.ReferencedClaimId!).ToList();
-        // Link open denials of the replaced version first so a synchronous adjudication can resolve them.
+        // Link the live denials of the replaced version first so a synchronous adjudication can resolve them. Upheld ones
+        // without a resubmission are still live: a re-adjudication appeal in the same claim did not change them.
         var linked = originals.Count == 0 ? new List<ClaimDenial>()
-            : await _db.ClaimDenials.Where(d => originals.Contains(d.ClaimId) && (d.Status == "Open" || d.Status == "Appealed") && d.ResubmissionClaimId == null).ToListAsync(ct);
+            : await _db.ClaimDenials.Where(d => originals.Contains(d.ClaimId) && d.ResubmissionClaimId == null
+                && (d.Status == RcmDenialStatus.Open || d.Status == RcmDenialStatus.Appealed || d.Status == RcmDenialStatus.Upheld)).ToListAsync(ct);
         foreach (var d in linked) d.ResubmissionClaimId = claim.Id;
 
         var dispatch = await _dispatcher.DispatchAsync(new RcmDispatchRequest
