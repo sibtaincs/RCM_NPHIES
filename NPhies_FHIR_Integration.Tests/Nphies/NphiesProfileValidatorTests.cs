@@ -125,6 +125,18 @@ public class NphiesProfileValidatorTests
         Assert.IsTrue(enforce.Errors.Any(i => i.RuleId == NphiesProfileValidator.RuleCardinality));
     }
 
+    [TestMethod]
+    public void A_batch_request_may_focus_on_every_claim_but_other_messages_on_one_resource()
+    {
+        // BV-00221 (focus.count() <= 1) does not apply to a batch: NPHIES's own batch example focuses on each claim bundle.
+        Assert.IsFalse(Validator.Validate(DocsExamples.LoadBundle("16 - Batch request.json")).Issues.Any(i => i.RuleId == "BV-00221"));
+
+        var claim = DocsExamples.LoadBundle("7a - Claim Dental Request.json");
+        var header = claim.Entry.Select(e => e.Resource).OfType<MessageHeader>().Single();
+        header.Focus.Add(new ResourceReference(header.Focus.First().Reference));
+        Assert.IsTrue(Validator.Validate(claim).Errors.Any(i => i.RuleId == "BV-00221"));
+    }
+
     private static Claim Claim(Bundle bundle) => bundle.Entry.Select(e => e.Resource).OfType<Claim>().First();
 }
 

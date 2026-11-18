@@ -49,6 +49,9 @@ public sealed class NphiesClaimAdjudicationResult
     public string? AdjudicationOutcome { get; init; }
     public string? ReissueReason { get; init; }
     /// <summary>Transfer of care (IG 7.3): the number the receiving provider quotes, the period it is valid for and that provider.</summary>
+    /// <summary>Batch claims: the batch-identifier and batch-number extensions, which match the response to its claim.</summary>
+    public string? BatchIdentifier { get; init; }
+    public int? BatchNumber { get; init; }
     public string? TransferAuthorizationNumber { get; init; }
     public string? TransferAuthorizationPeriodStart { get; init; }
     public string? TransferAuthorizationPeriodEnd { get; init; }

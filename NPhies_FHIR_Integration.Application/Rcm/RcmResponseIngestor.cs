@@ -165,7 +165,8 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
     private async Task<(string?, string?)> IngestAdjudicationAsync(NphiesResponse response, NphiesTransaction? tx, CancellationToken ct)
     {
         var adj = response.Adjudication!;
-        var claim = await FindClaimAsync(tx, adj.RequestIdentifierSystem, adj.RequestIdentifier, ct);
+        var claim = await FindClaimAsync(tx, adj.RequestIdentifierSystem, adj.RequestIdentifier, ct)
+                    ?? await FindBatchClaimAsync(adj.BatchIdentifier, adj.BatchNumber, ct);
         if (claim is null) return (null, null);
 
         var claimResponse = await _db.ClaimResponses
@@ -830,6 +831,17 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
             .OrderByDescending(c => c.CreatedDate).ToListAsync(ct);
         return candidates.FirstOrDefault(c => system != null && string.Equals(c.ClaimIdentifierSystem, system, StringComparison.OrdinalIgnoreCase))
                ?? candidates.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// A deferred response to a batch claim, when its request identifier does not find the claim: the batch-identifier
+    /// and batch-number extensions do (Claims guide, batch).
+    /// </summary>
+    private async Task<ClaimEntity?> FindBatchClaimAsync(string? batchIdentifier, int? batchNumber, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(batchIdentifier) || batchNumber is null) return null;
+        return await _db.Claims.Where(c => c.BatchIdentifier == batchIdentifier && c.BatchNumber == batchNumber)
+            .OrderByDescending(c => c.CreatedDate).FirstOrDefaultAsync(ct);
     }
 
     private static DateTime? ParseDate(string? value) =>

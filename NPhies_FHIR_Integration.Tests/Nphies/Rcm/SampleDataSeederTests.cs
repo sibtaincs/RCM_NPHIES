@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NPhies_FHIR_Integration.Application.Nphies.Builders;
 using NPhies_FHIR_Integration.Application.Nphies.Validation;
 using NPhies_FHIR_Integration.Application.Rcm;
+using NPhies_FHIR_Integration.Infrastructure.Configuration;
 using NPhies_FHIR_Integration.Infrastructure.Data.Configurations;
 using NPhies_FHIR_Integration.Infrastructure.Data.Seeders;
 using Task = System.Threading.Tasks.Task;
@@ -53,6 +54,31 @@ public class SampleDataSeederTests
         }
 
         Assert.AreEqual(0, failures.Count, string.Join(Environment.NewLine, failures));
+    }
+
+    [TestMethod]
+    public async Task Every_seeded_claim_passes_enforce_validation()
+    {
+        await SeedAsync();
+
+        // Enforce mode: business rules and IG profile findings are all errors, so this is what NPHIES would accept.
+        var enforce = new CompositeNphiesBundleValidator(new NphiesBundleValidator(), new NphiesProfileValidator(NphiesConformancePackage.Embedded),
+            NphiesProfileValidationMode.Enforce);
+        var ids = await _host.QueryAsync(db => db.Claims.Where(c => c.ClaimNumber.StartsWith(SampleDataSeeder.ClaimPrefix)).Select(c => c.Id).ToListAsync());
+        var failures = new List<string>();
+        using var scope = _host.Services.CreateScope();
+        var mapper = scope.ServiceProvider.GetRequiredService<IRcmInputMapper>();
+        var builder = scope.ServiceProvider.GetRequiredService<INphiesBundleBuilder>();
+        foreach (var id in ids)
+        {
+            var claim = (await mapper.LoadClaimGraphAsync(id))!;
+            var input = await mapper.MapClaimAsync(claim);
+            var bundle = RcmInputMapper.IsPreAuth(claim) ? builder.BuildPriorAuthRequest(input) : builder.BuildClaimRequest(input);
+            foreach (var e in enforce.Validate(bundle).Errors)
+                failures.Add($"{claim.ClaimNumber}: {e.RuleId} {e.Expression}: {e.Message}");
+        }
+
+        Assert.AreEqual(0, failures.Count, string.Join(Environment.NewLine, failures.Take(40)));
     }
 
     [TestMethod]

@@ -233,6 +233,8 @@ public sealed class NphiesResponseParser : INphiesResponseParser
         Outcome = response.OutcomeElement?.ObjectValue as string,
         AdjudicationOutcome = ExtensionCode(response, NphiesExtensions.AdjudicationOutcome),
         ReissueReason = ExtensionCode(response, NphiesExtensions.AdjudicationReissue),
+        BatchIdentifier = (response.GetExtension(NphiesExtensions.BatchIdentifier)?.Value as Identifier)?.Value,
+        BatchNumber = (response.GetExtension(NphiesExtensions.BatchNumber)?.Value as PositiveInt)?.Value,
         TransferAuthorizationNumber = (response.GetExtension(NphiesExtensions.TransferAuthorizationNumber)?.Value as FhirString)?.Value,
         TransferAuthorizationPeriodStart = (response.GetExtension(NphiesExtensions.TransferAuthorizationPeriod)?.Value as Period)?.Start,
         TransferAuthorizationPeriodEnd = (response.GetExtension(NphiesExtensions.TransferAuthorizationPeriod)?.Value as Period)?.End,
