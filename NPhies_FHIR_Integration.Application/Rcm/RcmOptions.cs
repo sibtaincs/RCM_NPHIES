@@ -110,6 +110,34 @@ public static class RcmClaimStatus
     public static readonly string[] AwaitingFinalResponse = { Submitted, Queued, Pended, Timeout };
 }
 
+/// <summary>Values for <c>ClaimDenial.Status</c>.</summary>
+public static class RcmDenialStatus
+{
+    public const string Open = "Open";
+    public const string Resubmitted = "Resubmitted";
+    public const string Appealed = "Appealed";
+    public const string Accepted = "Accepted";
+    public const string WrittenOff = "WrittenOff";
+    public const string Overturned = "Overturned";
+    /// <summary>
+    /// The payer kept the denial after an appeal. When the appeal was a re-adjudication in the same claim, the row is
+    /// still the live denial of that service: it can be appealed again, accepted or written off.
+    /// </summary>
+    public const string Upheld = "Upheld";
+
+    /// <summary>Statuses a user may set manually.</summary>
+    public static readonly string[] Manual = { Open, Accepted, WrittenOff };
+}
+
+/// <summary>Values for <c>AppealRequest.AppealMethod</c>.</summary>
+public static class RcmAppealMethod
+{
+    /// <summary>A re-adjudication communication about the same claim; the payer reissues its ClaimResponse.</summary>
+    public const string Communication = "Communication";
+    /// <summary>A new claim with <c>related = prior</c> and all the services.</summary>
+    public const string Resubmission = "Resubmission";
+}
+
 /// <summary>Values for <c>NphiesTransaction.Status</c>.</summary>
 public static class RcmTransactionStatus
 {

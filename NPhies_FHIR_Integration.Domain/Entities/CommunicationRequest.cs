@@ -135,6 +135,8 @@ public class CommunicationRequest : BaseEntity
     public string? PayloadsJson { get; set; }
     public string? RespondedCommunicationId { get; set; }
     public DateTime? RespondedAt { get; set; }
+    /// <summary>Comma-separated claim item sequences the payload refers to (<c>extension-ClaimItemSequence</c>), if any.</summary>
+    public string? ItemSequences { get; set; }
 
     /// <summary>
     /// Get request summary

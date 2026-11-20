@@ -220,10 +220,15 @@ public class ClaimsOnboardingCasesTests
             CollectionAssert.Contains(Categories(claim), category);
         Assert.IsTrue(claim.Item.Select(i => i.ProductOrService.Coding.First().System).Distinct().Count() > 1, "Items from different code systems.");
 
+        // Unsolicited communication about the lab service (extension-ClaimItemSequence, ClaimItem guide V1.1).
+        var labSequence = await _host.QueryAsync(db => db.ClaimItems.Where(i => i.ClaimId == consult.Id && i.ProductOrServiceCode == "66500-00-00").Select(i => i.Sequence).SingleAsync());
         await _host.RunAsync<IRcmCommunicationService, CommunicationDto>(s => s.SendAsync(new SendCommunicationDto
         {
-            ClaimId = consult.Id, Texts = { "The lipid profile was ordered because of a family history of hyperlipidaemia." },
+            ClaimId = consult.Id,
+            Items = { new CommunicationItemNoteDto { Sequence = labSequence, Text = "The lipid profile was ordered because of a family history of hyperlipidaemia." } },
         }));
+        var payload = Sent("communication").Entry.Select(e => e.Resource).OfType<Communication>().Single().Payload.Single();
+        Assert.AreEqual(labSequence, (payload.GetExtension(NphiesExtensions.ClaimItemSequence)?.Value as PositiveInt)?.Value);
         await PollAsync();
         Assert.AreEqual("rejected", await DecisionAsync(consult.Id));
     }

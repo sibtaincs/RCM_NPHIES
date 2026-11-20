@@ -147,6 +147,7 @@ public class RcmColumnsConfiguration :
         b.Property(x => x.ResponseMessageId).HasMaxLength(100);
         b.Property(x => x.TransferAuthorizationNumber).HasMaxLength(200);
         b.Property(x => x.TransferAuthorizationProvider).HasMaxLength(500);
+        b.Property(x => x.ReissueReason).HasMaxLength(30);
         foreach (var p in new[] { "TotalSubmitted", "TotalEligible", "TotalBenefit", "TotalCopay", "TotalTax", "TotalPatientShare", "PaymentAmount" })
             b.Property<decimal?>(p).HasPrecision(18, 2);
         b.HasIndex(x => x.ResponseMessageId);
@@ -164,6 +165,8 @@ public class RcmColumnsConfiguration :
         b.Property(x => x.Direction).HasMaxLength(20).IsRequired().HasDefaultValue("outbound");
         b.Property(x => x.ClaimId).HasMaxLength(100);
         b.Property(x => x.CommunicationRequestId).HasMaxLength(100);
+        b.Property(x => x.ReasonCode).HasMaxLength(50);
+        b.Property(x => x.ItemSequences).HasMaxLength(200);
         b.HasIndex(x => x.ClaimId);
     }
 
@@ -173,6 +176,7 @@ public class RcmColumnsConfiguration :
         b.Property(x => x.MessageId).HasMaxLength(100);
         b.Property(x => x.Reason).HasMaxLength(500);
         b.Property(x => x.RespondedCommunicationId).HasMaxLength(100);
+        b.Property(x => x.ItemSequences).HasMaxLength(200);
         b.HasIndex(x => x.ClaimId);
         b.HasIndex(x => x.MessageId);
     }

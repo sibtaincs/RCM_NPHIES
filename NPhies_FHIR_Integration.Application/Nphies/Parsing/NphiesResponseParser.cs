@@ -335,9 +335,29 @@ public sealed class NphiesResponseParser : INphiesResponseParser
             AboutClaimIdentifierSystem = about?.Identifier?.System,
             PayloadText = request.Payload.Select(p => (p.Content as FhirString)?.Value).OfType<string>().ToList(),
             PayloadAttachments = request.Payload.Select(p => p.Content as Attachment).OfType<Attachment>().ToList(),
+            Payloads = request.Payload.Select(p => new NphiesCommunicationPayload
+            {
+                Text = (p.Content as FhirString)?.Value,
+                Attachment = p.Content as Attachment,
+                ClaimItemSequence = ClaimItemSequence(p),
+            }).ToList(),
             Reason = request.ReasonCode.Select(Code).FirstOrDefault(c => c != null),
         };
     }
+
+    /// <summary>
+    /// The claim item a Communication(Request) payload refers to. The URL is matched without case because the guide
+    /// spells it both <c>extension-ClaimItemSequence</c> and <c>extension-claimItemSequence</c> (open question Q1).
+    /// </summary>
+    public static int? ClaimItemSequence(Element payload) =>
+        payload.Extension.FirstOrDefault(e => string.Equals(e.Url, NphiesExtensions.ClaimItemSequence, StringComparison.OrdinalIgnoreCase))?.Value switch
+        {
+            PositiveInt p => p.Value,
+            UnsignedInt u => u.Value,
+            Integer i => i.Value,
+            FhirDecimal d when d.Value is { } v && v == Math.Floor(v) => (int)v,
+            _ => null,
+        };
 
     #endregion
 

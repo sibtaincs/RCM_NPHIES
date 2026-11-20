@@ -1,25 +1,12 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NPhies_FHIR_Integration.Application.Nphies.Constants;
 using NPhies_FHIR_Integration.Application.Rcm.Dtos;
 using NPhies_FHIR_Integration.Domain.Entities;
 using NPhies_FHIR_Integration.Infrastructure.Data.Configurations;
 
 namespace NPhies_FHIR_Integration.Application.Rcm.Services;
-
-public static class RcmDenialStatus
-{
-    public const string Open = "Open";
-    public const string Resubmitted = "Resubmitted";
-    public const string Appealed = "Appealed";
-    public const string Accepted = "Accepted";
-    public const string WrittenOff = "WrittenOff";
-    public const string Overturned = "Overturned";
-    public const string Upheld = "Upheld";
-
-    /// <summary>Statuses a user may set manually.</summary>
-    public static readonly string[] Manual = { Open, Accepted, WrittenOff };
-}
 
 /// <summary>Denials derived from real adjudication data (ClaimResponse item reasons) and their work queue.</summary>
 public interface IRcmDenialService
@@ -115,7 +102,9 @@ public sealed class RcmDenialService : IRcmDenialService
         {
             if (!RcmDenialStatus.Manual.Contains(request.Status))
                 throw RcmWorkflowException.Invalid($"Status can only be set to {string.Join(", ", RcmDenialStatus.Manual)}; appeals and resubmissions set the others.");
-            if (d.Status is not (RcmDenialStatus.Open or RcmDenialStatus.Accepted or RcmDenialStatus.WrittenOff))
+            // A denial upheld by a re-adjudication in the same claim is still live: it can be accepted or written off.
+            var upheldInClaim = d.Status == RcmDenialStatus.Upheld && d.ResubmissionClaimId == null && request.Status != RcmDenialStatus.Open;
+            if (d.Status is not (RcmDenialStatus.Open or RcmDenialStatus.Accepted or RcmDenialStatus.WrittenOff) && !upheldInClaim)
                 throw RcmWorkflowException.Conflict($"Denial is {d.Status} and is managed by its appeal/resubmission.");
             d.Status = request.Status;
         }
@@ -162,7 +151,9 @@ public sealed class RcmAppealService : IRcmAppealService
         var claim = await _db.Claims.FirstOrDefaultAsync(c => c.Id == request.ClaimId, ct) ?? throw RcmWorkflowException.NotFound("Claim", request.ClaimId);
         if (RcmInputMapper.IsPreAuth(claim)) throw RcmWorkflowException.Invalid("Appeal prior-authorization denials by sending an update.");
 
-        var denialsQuery = _db.ClaimDenials.Where(d => d.ClaimId == claim.Id && d.Status == RcmDenialStatus.Open);
+        // Open denials, and those a re-adjudication in this same claim upheld (still the live denial of the service).
+        var denialsQuery = _db.ClaimDenials.Where(d => d.ClaimId == claim.Id
+            && (d.Status == RcmDenialStatus.Open || (d.Status == RcmDenialStatus.Upheld && d.ResubmissionClaimId == null)));
         if (request.DenialIds.Count > 0) denialsQuery = denialsQuery.Where(d => request.DenialIds.Contains(d.Id));
         var denials = await denialsQuery.ToListAsync(ct);
         if (denials.Count == 0) throw RcmWorkflowException.Conflict("There are no open denials on this claim to appeal.");
@@ -173,11 +164,22 @@ public sealed class RcmAppealService : IRcmAppealService
 
         var response = await _db.ClaimResponses.Where(r => r.ClaimId == claim.Id).OrderByDescending(r => r.ReceivedAt).FirstOrDefaultAsync(ct)
             ?? throw RcmWorkflowException.Conflict("Claim has no adjudication to appeal.");
+
+        // Appeal inside the same claim: the re-adjudication communication is the appeal, so it goes first; a
+        // validation failure then leaves nothing behind.
+        CommunicationDto? reAdjudication = null;
+        if (!request.Resubmit)
+            reAdjudication = await _communications.SendAsync(await ReAdjudicationAsync(claim, denials, request, ct), ct);
+
         var level = await _db.AppealRequests.CountAsync(a => a.ClaimId == claim.Id && !a.IsWithdrawn, ct) + 1;
+        var ordinal = await _db.AppealRequests.CountAsync(a => a.ClaimId == claim.Id, ct) + 1;
         var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
         var appeal = new AppealRequest
         {
-            AppealNumber = $"APL-{claim.ClaimNumber}-{level}",
+            // Numbered by every appeal ever made on the claim: a withdrawn one keeps its number.
+            AppealNumber = $"APL-{claim.ClaimNumber}-{ordinal}",
+            AppealMethod = request.Resubmit ? RcmAppealMethod.Resubmission : RcmAppealMethod.Communication,
+            CommunicationId = reAdjudication?.Id,
             AppealIdentifierSystem = _mapper.IdentifierSystem("appeal"),
             AppealIdentifierValue = $"appeal_{stamp}",
             ClaimId = claim.Id,
@@ -199,35 +201,36 @@ public sealed class RcmAppealService : IRcmAppealService
         };
         _db.AppealRequests.Add(appeal);
         AddHistory(appeal, "Draft", request.CreatedBy ?? "system", "Created");
+        // An upheld denial appealed again still names its earlier appeal; it gets it back if this one never reaches the payer.
+        var previousAppeal = denials.ToDictionary(d => d.Id, d => d.AppealRequestId);
         foreach (var d in denials) d.AppealRequestId = appeal.Id;
         await _db.SaveChangesAsync(ct);
 
-        var errors = new List<string>();
-        string? resubmissionId = null;
-        if (request.Resubmit)
-        {
-            var result = await _claims.ResubmitClaimAsync(claim.Id, new DerivedClaimRequestDto { Submit = true, Reason = request.Reason }, ct);
-            resubmissionId = result.ClaimId;
-            errors.AddRange(result.Errors);
-            var sent = result.TransactionStatus is RcmTransactionStatus.Completed or RcmTransactionStatus.Queued or RcmTransactionStatus.Timeout;
-            if (sent) appeal.AppealSubmittedDate = DateTime.UtcNow;
-            appeal.InternalReferenceNumber = result.ClaimId;
-            AddHistory(appeal, sent ? "Submitted" : "Failed", request.CreatedBy ?? "system", $"Resubmission {result.ClaimNumber}: {result.TransactionStatus}");
-            // A synchronous adjudication of the resubmission may already have decided the appeal.
-            if (appeal.AppealStatus != "Decided") appeal.AppealStatus = sent ? "Submitted" : "Failed";
-            if (!sent) resubmissionId = null;
-        }
-        else
-        {
-            appeal.AppealStatus = "Submitted";
-            appeal.AppealSubmittedDate = DateTime.UtcNow;
-        }
+        if (reAdjudication != null) return await RecordReAdjudicationAsync(appeal, denials, previousAppeal, reAdjudication, request.CreatedBy, ct);
 
-        foreach (var d in denials.Where(d => d.Status is RcmDenialStatus.Open or RcmDenialStatus.Resubmitted))
+        var errors = new List<string>();
+        var result = await _claims.ResubmitClaimAsync(claim.Id, new DerivedClaimRequestDto { Submit = true, Reason = request.Reason }, ct);
+        errors.AddRange(result.Errors);
+        var sent = result.TransactionStatus is RcmTransactionStatus.Completed or RcmTransactionStatus.Queued or RcmTransactionStatus.Timeout;
+        string? resubmissionId = sent ? result.ClaimId : null;
+        if (sent) appeal.AppealSubmittedDate = DateTime.UtcNow;
+        appeal.InternalReferenceNumber = result.ClaimId;
+        AddHistory(appeal, sent ? "Submitted" : "Failed", request.CreatedBy ?? "system", $"Resubmission {result.ClaimNumber}: {result.TransactionStatus}");
+
+        // A synchronous adjudication of the resubmission may already have decided the appeal and its denials.
+        if (appeal.AppealStatus != "Decided")
         {
-            d.Status = RcmDenialStatus.Appealed;
-            if (resubmissionId != null) d.ResubmissionClaimId = resubmissionId;
-            d.UpdatedAt = DateTime.UtcNow;
+            appeal.AppealStatus = sent ? "Submitted" : "Failed";
+            foreach (var d in denials)
+            {
+                if (sent)
+                {
+                    d.Status = RcmDenialStatus.Appealed;
+                    d.ResubmissionClaimId = resubmissionId;
+                }
+                else d.AppealRequestId = previousAppeal[d.Id]; // nothing reached the payer: the denials stay as they were.
+                d.UpdatedAt = DateTime.UtcNow;
+            }
         }
         appeal.LastStatusUpdateDate = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
@@ -253,6 +256,65 @@ public sealed class RcmAppealService : IRcmAppealService
         var dto = await GetAsync(appeal.Id, ct) ?? throw new InvalidOperationException("Appeal vanished.");
         dto.CommunicationId = communicationId;
         dto.Errors = errors;
+        return dto;
+    }
+
+    /// <summary>
+    /// The re-adjudication communication (Claim Re-submission guide): one text payload per denied service with
+    /// <c>extension-ClaimItemSequence</c>. A denial of the whole claim names every service.
+    /// </summary>
+    private async Task<SendCommunicationDto> ReAdjudicationAsync(Claim claim, List<ClaimDenial> denials, CreateAppealDto request, CancellationToken ct)
+    {
+        var sequences = denials.Where(d => d.ItemSequence.HasValue).Select(d => d.ItemSequence!.Value).ToList();
+        if (denials.Any(d => d.ItemSequence is null))
+            sequences.AddRange(await _db.ClaimItems.AsNoTracking().Where(i => i.ClaimId == claim.Id).Select(i => i.Sequence).ToListAsync(ct));
+        sequences = sequences.Distinct().Order().ToList();
+        if (sequences.Count == 0) throw RcmWorkflowException.Conflict("The claim has no services to re-adjudicate; resubmit it instead.");
+
+        var stray = request.Items.Select(i => i.Sequence).Where(s => !sequences.Contains(s)).Distinct().ToList();
+        if (stray.Count > 0)
+            throw RcmWorkflowException.Invalid($"Service {string.Join(", ", stray)} is not among the denials being appealed.");
+
+        var texts = request.Texts.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()).ToList();
+        var own = request.Items.Where(i => !string.IsNullOrWhiteSpace(i.Text)).GroupBy(i => i.Sequence).ToDictionary(g => g.Key, g => g.First().Text.Trim());
+        var everyItemHasItsOwn = sequences.All(own.ContainsKey);
+        var fallback = texts.FirstOrDefault() ?? request.Reason.Trim();
+        return new SendCommunicationDto
+        {
+            ClaimId = claim.Id,
+            ReasonCode = NphiesCommunicationReasons.ReAdjudication,
+            Category = "instruction",
+            Items = sequences.Select(s => new CommunicationItemNoteDto { Sequence = s, Text = own.TryGetValue(s, out var t) ? t : fallback }).ToList(),
+            // The general justification already went out with each service that has none of its own.
+            Texts = everyItemHasItsOwn ? texts : texts.Skip(1).ToList(),
+            // With a single service, documents support that service.
+            Attachments = request.Attachments.Select(a => new AttachmentDto
+            {
+                ContentType = a.ContentType, Title = a.Title, Data = a.Data, Url = a.Url, Creation = a.Creation,
+                ItemSequence = a.ItemSequence ?? (sequences.Count == 1 ? sequences[0] : null),
+            }).ToList(),
+        };
+    }
+
+    /// <summary>Records the outcome of sending the re-adjudication communication on the appeal and its denials.</summary>
+    private async Task<AppealDto> RecordReAdjudicationAsync(AppealRequest appeal, List<ClaimDenial> denials, Dictionary<string, string?> previousAppeal,
+        CommunicationDto communication, string? by, CancellationToken ct)
+    {
+        var sent = communication.ProcessingStatus is RcmTransactionStatus.Completed or RcmTransactionStatus.Queued or RcmTransactionStatus.Timeout;
+        appeal.AppealStatus = sent ? "Submitted" : "Failed";
+        if (sent) appeal.AppealSubmittedDate = DateTime.UtcNow;
+        appeal.LastStatusUpdateDate = DateTime.UtcNow;
+        AddHistory(appeal, appeal.AppealStatus, by ?? "system", $"Re-adjudication communication {communication.Identifier}: {communication.ProcessingStatus}");
+        foreach (var d in denials)
+        {
+            if (sent) d.Status = RcmDenialStatus.Appealed;
+            else d.AppealRequestId = previousAppeal[d.Id]; // the payer never got it: the denials stay as they were.
+            d.UpdatedAt = DateTime.UtcNow;
+        }
+        await _db.SaveChangesAsync(ct);
+
+        var dto = await GetAsync(appeal.Id, ct) ?? throw new InvalidOperationException("Appeal vanished.");
+        dto.Errors = communication.Errors;
         return dto;
     }
 
@@ -300,7 +362,7 @@ public sealed class RcmAppealService : IRcmAppealService
     {
         var ids = rows.Select(a => a.Id).ToList();
         var denials = await _db.ClaimDenials.AsNoTracking().Where(d => d.AppealRequestId != null && ids.Contains(d.AppealRequestId))
-            .Select(d => new { d.Id, d.AppealRequestId, d.DeniedAmount, d.ResubmissionClaimId }).ToListAsync(ct);
+            .Select(d => new { d.Id, d.AppealRequestId, d.DeniedAmount, d.ResubmissionClaimId, d.Status }).ToListAsync(ct);
         return rows.Select(a =>
         {
             var mine = denials.Where(d => d.AppealRequestId == a.Id).ToList();
@@ -310,13 +372,17 @@ public sealed class RcmAppealService : IRcmAppealService
                 AppealNumber = a.AppealNumber,
                 ClaimId = a.ClaimId,
                 ClaimNumber = a.Claim?.ClaimNumber,
-                ResubmissionClaimId = mine.Select(d => d.ResubmissionClaimId).FirstOrDefault(x => x != null) ?? a.InternalReferenceNumber,
+                ResubmissionClaimId = a.AppealMethod == RcmAppealMethod.Communication ? null
+                    : mine.Select(d => d.ResubmissionClaimId).FirstOrDefault(x => x != null) ?? a.InternalReferenceNumber,
+                CommunicationId = a.CommunicationId,
+                Method = a.AppealMethod,
                 Status = a.AppealStatus,
                 Outcome = a.AppealOutcome,
                 Level = a.AppealLevel,
                 ReasonCodes = a.ErrorCodeBeingAppealed,
                 Reason = a.AppealReason,
                 AppealedAmount = mine.Sum(d => d.DeniedAmount),
+                RecoveredAmount = mine.Where(d => d.Status == RcmDenialStatus.Overturned).Sum(d => d.DeniedAmount),
                 ApprovedAmount = a.ApprovedAmount,
                 DenialDate = a.DenialDate,
                 DeadlineDate = a.AppealDeadlineDate,

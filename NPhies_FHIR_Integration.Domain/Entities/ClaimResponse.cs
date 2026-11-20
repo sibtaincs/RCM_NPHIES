@@ -119,6 +119,12 @@ public class ClaimResponse : BaseEntity
     public string? TransferAuthorizationProvider { get; set; }
 
     /// <summary>
+    /// Why the payer reissued this response (<c>extension-adjudication-reissue</c>, reissue-reason CodeSystem), for example
+    /// <c>adjudication</c> after a re-adjudication communication. Null on a first response.
+    /// </summary>
+    public string? ReissueReason { get; set; }
+
+    /// <summary>
     /// Advanced authorization reason (e.g., "referral")
     /// </summary>
     public string? AdvancedAuthReason { get; set; }

@@ -121,6 +121,8 @@ export interface ClaimAdjudication {
   outcome?: string | null;
   adjudicationOutcome?: string | null;
   disposition?: string | null;
+  /** Why the payer reissued this response (reissue-reason), e.g. "adjudication" after a re-adjudication appeal. */
+  reissueReason?: string | null;
   preAuthRef?: string | null;
   preAuthPeriodStart?: string | null;
   preAuthPeriodEnd?: string | null;
@@ -321,13 +323,26 @@ export interface Attachment {
   data?: string;
   url?: string;
   creation?: string;
+  /** The claim service (item sequence) the document supports; sent as extension-ClaimItemSequence. */
+  itemSequence?: number;
 }
+
+/** A text about one claim service (Communication.payload with extension-ClaimItemSequence). */
+export interface CommunicationItemNote {
+  sequence: number;
+  text: string;
+}
+
+/** NPHIES communication-reason codes. */
+export const COMMUNICATION_REASONS = ['missing-info', 'missing-attach', 'info-correct', 're-adjudication'] as const;
 
 export interface SendCommunicationRequest {
   claimId?: string;
   /** An advanced authorization to write about instead of a claim. */
   advancedAuthorizationId?: string;
   texts: string[];
+  /** Texts about single services of the claim. */
+  items?: CommunicationItemNote[];
   attachments: Attachment[];
   category?: string;
   priority?: string;
@@ -345,9 +360,13 @@ export interface CommunicationRequest {
   payloadText?: string | null;
   payloads?: unknown;
   reason?: string | null;
+  /** Claim services the payer's request refers to. */
+  itemSequences: number[];
   receivedAt?: string | null;
   respondedCommunicationId?: string | null;
   respondedAt?: string | null;
+  /** False for a notification, which only informs. */
+  requiresResponse: boolean;
   isOpen: boolean;
 }
 
@@ -362,6 +381,8 @@ export interface Communication {
   communicationRequestId?: string | null;
   payloadText?: string | null;
   payloads?: unknown;
+  reasonCode?: string | null;
+  itemSequences: number[];
   processingStatus: string;
   sentAt?: string | null;
   createdAt: string;
@@ -464,7 +485,10 @@ export interface CreateAppealRequest {
   reason: string;
   notes?: string;
   texts: string[];
+  /** Re-adjudication only: a justification per appealed service. */
+  items?: CommunicationItemNote[];
   attachments: Attachment[];
+  /** true: a new claim related to this one; false: a re-adjudication communication about the same claim. */
   resubmit: boolean;
 }
 
@@ -475,12 +499,16 @@ export interface Appeal {
   claimNumber?: string | null;
   resubmissionClaimId?: string | null;
   communicationId?: string | null;
+  /** Communication (re-adjudication in the same claim) or Resubmission. */
+  method: string;
   status: string;
   outcome?: string | null;
   level: number;
   reasonCodes: string;
   reason: string;
   appealedAmount: number;
+  /** The part of the appealed amount the payer no longer denies. */
+  recoveredAmount: number;
   approvedAmount?: number | null;
   denialDate: string;
   deadlineDate: string;

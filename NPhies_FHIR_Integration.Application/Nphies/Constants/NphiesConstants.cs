@@ -107,6 +107,14 @@ public static class NphiesExtensions
     public const string ComponentEarlyFee = B + "component-early-fee";
     public const string ComponentNphiesFee = B + "component-nphies-fee";
 
+    // Communication / CommunicationRequest .payload
+    /// <summary>
+    /// Links a payload to one claim item (positiveInt, 0..1 per payload). From the "Communication/CommunicationRequest
+    /// referring to ClaimItem" guide V1.1 and the Claim Re-submission guide; it is not in the IG package (open question Q1).
+    /// The guide's example spells it <c>extension-claimItemSequence</c>, so inbound messages are matched without case.
+    /// </summary>
+    public const string ClaimItemSequence = B + "ClaimItemSequence";
+
     // Other resources
     public const string ServiceEventType = B + "serviceEventType";
     public const string ProviderType = B + "provider-type";
@@ -228,6 +236,26 @@ public static class NphiesCodeSystems
     public const string Icd10Am = "http://hl7.org/fhir/sid/icd-10-am";
     public const string Loinc = "http://loinc.org";
     public const string Ucum = "http://unitsofmeasure.org";
+}
+
+/// <summary>Codes of the NPHIES <c>communication-reason</c> CodeSystem (a required binding on Communication.reasonCode).</summary>
+public static class NphiesCommunicationReasons
+{
+    public const string InformationCorrection = "info-correct";
+    public const string MissingAttachment = "missing-attach";
+    public const string MissingInformation = "missing-info";
+    /// <summary>
+    /// The provider asks the payer to adjudicate items of the same claim again (Claim Re-submission guide). The payer
+    /// answers with a reissued ClaimResponse (<c>reissue-reason = adjudication</c>) or a <c>notification</c>
+    /// CommunicationRequest with the same reason.
+    /// </summary>
+    public const string ReAdjudication = "re-adjudication";
+
+    public static readonly string[] All = { InformationCorrection, MissingAttachment, MissingInformation, ReAdjudication };
+
+    /// <summary>The canonical code for <paramref name="code"/> compared without case, or null when it is not in the CodeSystem.</summary>
+    public static string? Normalize(string? code) =>
+        string.IsNullOrWhiteSpace(code) ? null : All.FirstOrDefault(c => string.Equals(c, code.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>Identifier systems (licenses and national identifiers).</summary>

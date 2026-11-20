@@ -44,7 +44,8 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
     public async Task<RcmPagedResult<CommunicationRequestDto>> ListRequestsAsync(RcmQuery query, bool openOnly, CancellationToken ct = default)
     {
         var q = _db.CommunicationRequests.AsNoTracking().AsQueryable();
-        if (openOnly) q = q.Where(r => r.RespondedCommunicationId == null && r.Status == "active");
+        // Open = waiting for our reply; a notification only informs (CommunicationRequestDto.RequiresResponse).
+        if (openOnly) q = q.Where(r => r.RespondedCommunicationId == null && r.Status == "active" && (r.Category == null || r.Category != "notification"));
         if (!string.IsNullOrWhiteSpace(query.ProviderId)) q = q.Where(r => r.RecipientId == query.ProviderId);
         if (!string.IsNullOrWhiteSpace(query.InsurerId)) q = q.Where(r => r.SenderId == query.InsurerId);
         if (!string.IsNullOrWhiteSpace(query.PatientId)) q = q.Where(r => r.SubjectPatientId == query.PatientId);
@@ -145,8 +146,9 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
     /// </param>
     private async Task<CommunicationDto> SendCoreAsync(string claimId, SendCommunicationDto request, CommunicationRequest? basedOn, CancellationToken ct, Claim? about = null)
     {
-        var texts = request.Texts.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
-        if (texts.Count == 0 && request.Attachments.Count == 0)
+        var texts = request.Texts.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()).ToList();
+        var itemNotes = request.Items.Where(i => !string.IsNullOrWhiteSpace(i.Text)).ToList();
+        if (texts.Count == 0 && itemNotes.Count == 0 && request.Attachments.Count == 0)
             throw RcmWorkflowException.Invalid("A communication needs at least one text or attachment payload.");
         var errors = new List<string>();
         foreach (var a in request.Attachments)
@@ -160,6 +162,15 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
         }
         var category = (request.Category ?? basedOn?.Category ?? "instruction").Trim().ToLowerInvariant();
         if (!Categories.Contains(category)) errors.Add($"Unsupported category '{category}'.");
+        string? reason = null;
+        if (!string.IsNullOrWhiteSpace(request.ReasonCode))
+        {
+            reason = NphiesCommunicationReasons.Normalize(request.ReasonCode);
+            if (reason is null)
+                errors.Add($"Unsupported reason code '{request.ReasonCode}'; use one of {string.Join(", ", NphiesCommunicationReasons.All)}.");
+        }
+        var sequences = itemNotes.Select(i => i.Sequence).Concat(request.Attachments.Where(a => a.ItemSequence.HasValue).Select(a => a.ItemSequence!.Value)).ToList();
+        if (sequences.Any(s => s < 1)) errors.Add("Item sequences must be positive.");
         if (errors.Count > 0) throw RcmWorkflowException.Invalid("Invalid communication.", errors);
 
         var aboutType = about is null ? "Claim" : "ClaimResponse";
@@ -169,6 +180,16 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             throw RcmWorkflowException.Conflict("Communications can only reference a claim that was sent to NPHIES.");
         if (claim.Patient is null || claim.Provider is null || claim.Insurer is null)
             throw RcmWorkflowException.Invalid("Claim patient, provider or insurer is missing.");
+
+        if (reason == NphiesCommunicationReasons.ReAdjudication) EnsureCanReAdjudicate(claim, about, sequences);
+        if (about is null && sequences.Count > 0)
+        {
+            // BRVR (ClaimItem guide V1.1): each ClaimItemSequence must be an item of the claim named in .about.
+            var known = await _db.ClaimItems.AsNoTracking().Where(i => i.ClaimId == claim.Id).Select(i => i.Sequence).ToListAsync(ct);
+            var unknown = sequences.Distinct().Where(s => !known.Contains(s)).Order().ToList();
+            if (unknown.Count > 0)
+                throw RcmWorkflowException.Invalid($"The claim has no service with sequence {string.Join(", ", unknown)}.");
+        }
 
         var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
         var entity = new Communication
@@ -192,14 +213,17 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             RecipientId = claim.InsurerId,
             ClaimId = about is null ? claim.Id : null,
             CommunicationRequestId = basedOn?.Id,
-            PayloadContent = texts.FirstOrDefault(),
+            PayloadContent = texts.FirstOrDefault() ?? itemNotes.FirstOrDefault()?.Text.Trim(),
             PayloadAttachmentContentType = request.Attachments.FirstOrDefault()?.ContentType,
             PayloadAttachmentTitle = request.Attachments.FirstOrDefault()?.Title,
             PayloadsJson = JsonSerializer.Serialize(new
             {
                 texts,
-                attachments = request.Attachments.Select(a => new { a.ContentType, a.Title, a.Url, a.Creation, size = a.Data is null ? 0 : (a.Data.Length * 3 / 4) }),
+                items = itemNotes.Select(i => new { sequence = i.Sequence, text = i.Text.Trim() }),
+                attachments = request.Attachments.Select(a => new { a.ContentType, a.Title, a.Url, a.Creation, a.ItemSequence, size = a.Data is null ? 0 : (a.Data.Length * 3 / 4) }),
             }),
+            ReasonCode = reason,
+            ItemSequences = RcmProjections.FormatSequences(sequences),
             ProcessingStatus = RcmTransactionStatus.Pending,
         };
         _db.Communications.Add(entity);
@@ -214,13 +238,15 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             AboutResourceType = aboutType,
             Category = category,
             Priority = request.Priority ?? "routine",
-            Reason = string.IsNullOrWhiteSpace(request.ReasonCode) ? null : new NphiesCoding(NphiesCodeSystems.CommunicationReason, request.ReasonCode!),
+            Reason = reason is null ? null : new NphiesCoding(NphiesCodeSystems.CommunicationReason, reason),
             Patient = _mapper.MapPatient(claim.Patient),
             Provider = _mapper.MapOrganization(claim.Provider, NphiesOrganizationKind.Provider),
             Insurer = _mapper.MapOrganization(claim.Insurer, NphiesOrganizationKind.Insurer),
             Payloads = texts.Select(t => new CommunicationPayloadInput { ContentString = t })
+                .Concat(itemNotes.Select(i => new CommunicationPayloadInput { ContentString = i.Text.Trim(), ClaimItemSequence = i.Sequence }))
                 .Concat(request.Attachments.Select(a => new CommunicationPayloadInput
                 {
+                    ClaimItemSequence = a.ItemSequence,
                     ContentAttachment = new AttachmentInput
                     {
                         ContentType = string.IsNullOrWhiteSpace(a.ContentType) ? "application/pdf" : a.ContentType,
@@ -263,5 +289,28 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
         dto.TransactionStatus = dispatch.Status;
         dto.Errors = dispatch.Errors;
         return dto;
+    }
+
+    /// <summary>
+    /// Claim Re-submission guide: a re-adjudication communication asks the payer to look again at named services of a
+    /// claim it has adjudicated. NPHIES rejects one about a claim that was cancelled, had errors, or doesn't exist.
+    /// </summary>
+    private static void EnsureCanReAdjudicate(Claim claim, Claim? about, List<int> sequences)
+    {
+        if (about != null || RcmInputMapper.IsPreAuth(claim))
+            throw RcmWorkflowException.Invalid("Re-adjudication applies to claims. To change an authorization's decision, send an update of the authorization.");
+        switch (claim.NphiesStatus)
+        {
+            case RcmClaimStatus.Cancelled or RcmClaimStatus.Nullified or RcmClaimStatus.CancelRequested:
+                throw RcmWorkflowException.Conflict("The claim was cancelled; NPHIES does not re-adjudicate a cancelled claim.");
+            case RcmClaimStatus.Error or RcmClaimStatus.ValidationFailed:
+                throw RcmWorkflowException.Conflict("The claim was answered with errors; correct it and send a new claim instead.");
+            case RcmClaimStatus.Superseded:
+                throw RcmWorkflowException.Conflict("The claim was replaced by a resubmission; appeal the newer claim.");
+        }
+        if (!RcmClaimStatus.Adjudicated.Contains(claim.NphiesStatus))
+            throw RcmWorkflowException.Conflict($"The claim is {claim.NphiesStatus}; the payer has to adjudicate it before it can be re-adjudicated.");
+        if (sequences.Count == 0)
+            throw RcmWorkflowException.Invalid("Name the services to re-adjudicate: give each one a justification (items) or attach a document to it.");
     }
 }

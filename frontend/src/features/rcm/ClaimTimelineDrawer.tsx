@@ -129,6 +129,11 @@ function AdjudicationView({ a }: { a: ClaimAdjudication }) {
           {statusTag(a.adjudicationOutcome)}
         </Descriptions.Item>
         <Descriptions.Item label="Received">{fmtDate(a.receivedAt, true)}</Descriptions.Item>
+        {a.reissueReason && (
+          <Descriptions.Item label="Reissued">
+            <span title="The payer reissued its response (reissue-reason)">{statusTag(a.reissueReason)}</span>
+          </Descriptions.Item>
+        )}
         <Descriptions.Item label="Submitted">{fmtMoney(a.totalSubmitted)}</Descriptions.Item>
         <Descriptions.Item label="Eligible">{fmtMoney(a.totalEligible)}</Descriptions.Item>
         <Descriptions.Item label="Benefit">{fmtMoney(a.totalBenefit)}</Descriptions.Item>

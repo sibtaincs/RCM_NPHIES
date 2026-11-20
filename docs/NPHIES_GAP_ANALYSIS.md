@@ -35,7 +35,7 @@ Two smaller issues would also cause NPHIES rejections or wrong reports:
 
 ## Certification test cases
 
-✅ supported · ⚠️ partly supported · ❌ blocked
+✅ supported · ⚠️ partly supported · ❌ blocked. The Eligibility, Authorization and Claims cases pass against the sandbox (`EligibilityOnboardingCasesTests`, `AuthorizationOnboardingCasesTests`, `ClaimsOnboardingCasesTests`); none has been run against the NPHIES OBA environment yet.
 
 ### Eligibility (V4.0)
 
@@ -51,30 +51,30 @@ Two smaller issues would also cause NPHIES rejections or wrong reports:
 
 | # | Test case | Status | Gap |
 |---|---|---|---|
-| 1 | Institutional, deferred; vitals, chief complaint (text and ICD), encounter, package item; unsolicited communication | ⚠️ | Q1: item-sequence link in the communication payload |
-| 2 | Professional with an **online eligibility response reference**; LOINC lab tests; solicited communication with attachment | ❌ | G3 |
+| 1 | Institutional, deferred; vitals, chief complaint (text and ICD), encounter, package item; unsolicited communication | ✅ | Item sequence sent with the interim URL (Q1, to confirm) |
+| 2 | Professional with an **online eligibility response reference**; LOINC lab tests; solicited communication with attachment | ✅ | G3, fixed |
 | 3 | Dental, offline eligibility, `fdi-oral-region`, cancel | ✅ | |
 | 4 | Optical with VisionPrescription | ✅ | |
 | 5 | Pharmacy: days-supply linked by `informationSequence`; unlisted drug with SFDA shadow billing | ✅ | |
 | 6 | Resubmission of a rejected authorization (`related = prior`) | ✅ | |
 | 7 | Follow-up institutional authorization (`related = prior`, one service added) | ✅ | |
 | 8 | **Newborn** authorization (birth-weight, Z38 diagnosis) | ✅ | G1, fixed |
-| 9 | Referral (**transfer**) authorization | ⚠️ | G9: the transfer details in the response are not read |
-| 10 | Advanced authorization: poll filtered to APAs, show the APA, answer its communication request, payer cancels it | ❌ | G4 |
+| 9 | Referral (**transfer**) authorization | ✅ | G9, fixed |
+| 10 | Advanced authorization: poll filtered to APAs, show the APA, answer its communication request, payer cancels it | ✅ | G4, fixed |
 
 ### Claims (V4.0)
 
 | # | Test case | Status | Gap |
 |---|---|---|---|
-| 1 | Pharmacy claim with a **prior-auth response reference**; solicited communication | ❌ | G3 |
-| 2 | Professional claim with an **online eligibility response reference**; vitals, onset, LOINC; unsolicited communication with item sequence | ❌ | G3, Q1 |
+| 1 | Pharmacy claim with a **prior-auth response reference**; solicited communication | ✅ | G3, fixed |
+| 2 | Professional claim with an **online eligibility response reference**; vitals, onset, LOINC; unsolicited communication with item sequence | ✅ | G3 fixed; item sequence sent with the interim URL (Q1, to confirm) |
 | 3 | Institutional, offline eligibility; vitals, attachment, icu-hours, encounter, package with details; status check | ✅ | |
 | 4 | Dental, offline authorization, cancel or nullify | ✅ | |
 | 5 | Claim without references, error response | ✅ | |
 | 6 | **Newborn** claim (mother and newborn patients, birth-weight, Z38) | ✅ | G1, fixed |
 | 7 | Batch of at least 2 claims (optional) | ✅ | |
-| 8 | Optical claim with **eligibility and authorization response references** | ❌ | G3 |
-| 9 | Inpatient claim with 300 items (optional) | ✅ | Not tested; no item limit in the code, and the 10 MB message limit leaves room |
+| 8 | Optical claim with **eligibility and authorization response references** | ✅ | G3, fixed |
+| 9 | Inpatient claim with 300 items (optional) | ✅ | Answered as a large claim (`large-claim` tag) and decided by poll |
 
 ### Payment (V3.0)
 
@@ -190,6 +190,10 @@ Already listed in `docs/PROJECT_STATUS.md`; it matters for certification because
 ## Questions for NPHIES
 
 **Q1. Item-sequence link in Communication.payload.** Authorization #1 and Claims #2 require `Communication.payload.extension.ClaimItemSequence`. The embedded IG package (December 2025) defines no such extension on the Communication profile: payload slices are only string, attachment and reference. The communication examples in the repository don't use it either. Ask which extension URL to use, or whether the requirement has been dropped.
+- *Interim choice, Phase 6:* the code sends `http://nphies.sa/fhir/ksa/nphies-fs/StructureDefinition/extension-ClaimItemSequence` with `valuePositiveInt`. That is the URL given in the "URL" line of the ClaimItem guide V1.1 and in the Claim Re-submission guide.
+  - Inbound payloads are read with either capitalisation.
+  - Profile validation only warns about the extension.
+  - Confirm the URL, and whether the extension will be added to the package, before certification.
 
 **Q2. Current versions.** The PDF guide (May 2024), the IG package (December 2025) and the test cases (2023) are different releases. Confirm the versions to certify against, and get any newer test-case documents.
 

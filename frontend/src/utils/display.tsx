@@ -22,7 +22,7 @@ export function fmtPct(value?: number | null): string {
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
 const GREEN = new Set(['approved', 'complete', 'completed', 'active', 'paid', 'matched', 'eligible', 'accepted', 'success', 'sent', 'acknowledged', 'resolved', 'won', 'in-force', 'true', 'overturned', 'decided'].map(norm));
 const RED = new Set(['rejected', 'error', 'failed', 'denied', 'cancelled', 'entered-in-error', 'expired', 'lost', 'discrepancy', 'unmatched', 'false', 'not-eligible', 'validation-failed', 'nullified', 'upheld', 'written-off', 'not-sent'].map(norm));
-const ORANGE = new Set(['partial', 'partially-approved', 'partially-paid', 'queued', 'pending', 'pended', 'in-progress', 'submitted', 'open', 'draft', 'timeout', 'under-review', 'appealed', 'partially-matched', 'cancel-requested', 'resubmitted'].map(norm));
+const ORANGE = new Set(['partial', 'partially-approved', 'partially-paid', 'queued', 'pending', 'pended', 'in-progress', 'submitted', 'open', 'draft', 'timeout', 'under-review', 'appealed', 'partially-matched', 'cancel-requested', 'resubmitted', 'partially-overturned'].map(norm));
 
 /** Coloured tag for any status/outcome string. */
 export function statusTag(value?: string | boolean | null): ReactNode {

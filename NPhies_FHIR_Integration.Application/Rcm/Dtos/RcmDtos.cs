@@ -218,6 +218,8 @@ public sealed class ClaimAdjudicationDto
     public string? Outcome { get; set; }
     public string? AdjudicationOutcome { get; set; }
     public string? Disposition { get; set; }
+    /// <summary>Why the payer reissued this response (reissue-reason), e.g. <c>adjudication</c> after a re-adjudication appeal.</summary>
+    public string? ReissueReason { get; set; }
     public string? PreAuthRef { get; set; }
     public DateTime? PreAuthPeriodStart { get; set; }
     public DateTime? PreAuthPeriodEnd { get; set; }
@@ -596,6 +598,15 @@ public sealed class AttachmentDto
     public string? Data { get; set; }
     public string? Url { get; set; }
     public DateTime? Creation { get; set; }
+    /// <summary>The claim item (Claim.item.sequence) the document supports; sent as <c>extension-ClaimItemSequence</c>.</summary>
+    public int? ItemSequence { get; set; }
+}
+
+/// <summary>A text payload about one claim item (Communication.payload with <c>extension-ClaimItemSequence</c>).</summary>
+public sealed class CommunicationItemNoteDto
+{
+    public int Sequence { get; set; }
+    public string Text { get; set; } = string.Empty;
 }
 
 public sealed class SendCommunicationDto
@@ -606,11 +617,17 @@ public sealed class SendCommunicationDto
     public string? AdvancedAuthorizationId { get; set; }
     /// <summary>Claim (or prior auth) the communication is about. Required for unsolicited communications.</summary>
     public string? ClaimId { get; set; }
+    /// <summary>Texts about the whole claim.</summary>
     public List<string> Texts { get; set; } = new();
+    /// <summary>Texts about single claim items; each must be a sequence of the claim's items.</summary>
+    public List<CommunicationItemNoteDto> Items { get; set; } = new();
     public List<AttachmentDto> Attachments { get; set; } = new();
     public string? Category { get; set; }
     public string Priority { get; set; } = "routine";
-    /// <summary>Communication reason code (unsolicited), e.g. Missing-info.</summary>
+    /// <summary>
+    /// communication-reason code: <c>info-correct</c>, <c>missing-attach</c>, <c>missing-info</c> or
+    /// <c>re-adjudication</c> (ask the payer to adjudicate the named items of a claim again; needs at least one item).
+    /// </summary>
     public string? ReasonCode { get; set; }
 }
 
@@ -626,10 +643,17 @@ public sealed class CommunicationRequestDto
     public string? PayloadText { get; set; }
     public object? Payloads { get; set; }
     public string? Reason { get; set; }
+    /// <summary>Claim items the payer's request refers to (<c>extension-ClaimItemSequence</c>).</summary>
+    public List<int> ItemSequences { get; set; } = new();
     public DateTime? ReceivedAt { get; set; }
     public string? RespondedCommunicationId { get; set; }
     public DateTime? RespondedAt { get; set; }
-    public bool IsOpen => RespondedAt is null;
+    /// <summary>
+    /// A <c>notification</c> only informs the provider, for example why a re-adjudication appeal was not accepted;
+    /// it needs no reply.
+    /// </summary>
+    public bool RequiresResponse => !string.Equals(Category, "notification", StringComparison.OrdinalIgnoreCase);
+    public bool IsOpen => RespondedAt is null && RequiresResponse && string.Equals(Status, "active", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class CommunicationDto
@@ -644,6 +668,9 @@ public sealed class CommunicationDto
     public string? CommunicationRequestId { get; set; }
     public string? PayloadText { get; set; }
     public object? Payloads { get; set; }
+    public string? ReasonCode { get; set; }
+    /// <summary>Claim items the payloads refer to (<c>extension-ClaimItemSequence</c>).</summary>
+    public List<int> ItemSequences { get; set; } = new();
     public string ProcessingStatus { get; set; } = string.Empty;
     public DateTime? SentAt { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -781,8 +808,17 @@ public sealed class CreateAppealDto
     public string? Notes { get; set; }
     /// <summary>Justification text and documents sent to the payer as a communication.</summary>
     public List<string> Texts { get; set; } = new();
+    /// <summary>
+    /// Re-adjudication only: a justification per appealed service. Services without one get the first of
+    /// <see cref="Texts"/>, else <see cref="Reason"/>.
+    /// </summary>
+    public List<CommunicationItemNoteDto> Items { get; set; } = new();
     public List<AttachmentDto> Attachments { get; set; } = new();
-    /// <summary>Resubmit a corrected claim (related = prior) as part of the appeal (default true).</summary>
+    /// <summary>
+    /// true (default): resubmit the claim as a new claim (related = prior) with all its services.
+    /// false: appeal inside the same claim with a re-adjudication communication naming the denied services; the payer
+    /// answers with a reissued ClaimResponse or a notification.
+    /// </summary>
     public bool Resubmit { get; set; } = true;
     public string? CreatedBy { get; set; }
 }
@@ -795,12 +831,16 @@ public sealed class AppealDto
     public string? ClaimNumber { get; set; }
     public string? ResubmissionClaimId { get; set; }
     public string? CommunicationId { get; set; }
+    /// <summary>Communication (re-adjudication in the same claim) or Resubmission (new claim, related = prior).</summary>
+    public string Method { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string? Outcome { get; set; }
     public int Level { get; set; }
     public string ReasonCodes { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
     public decimal AppealedAmount { get; set; }
+    /// <summary>The part of the appealed amount the payer no longer denies.</summary>
+    public decimal RecoveredAmount { get; set; }
     public decimal? ApprovedAmount { get; set; }
     public DateTime DenialDate { get; set; }
     public DateTime DeadlineDate { get; set; }

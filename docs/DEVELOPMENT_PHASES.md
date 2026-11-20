@@ -358,6 +358,29 @@ CI builds and tests, the repository is cleaned up, and the status is honest. See
 
 **Done when** the communication test cases pass (Authorization #1, Claims #2), and an appeal round trip works in the sandbox.
 
+**Status: part 1 implemented** on `phase-6/re-adjudication-appeals` (tests in `RcmReAdjudicationAppealTests` and `CommunicationItemSequenceTests`).
+- **Item sequence (Q1).** Communications can carry texts and attachments about single services (`items`, `attachments[].itemSequence`), sent as `payload.extension-ClaimItemSequence`. Each sequence must be a service of the claim (the guide's BRVR).
+  - The URL follows the "URL" line of the ClaimItem guide V1.1 and the Claim Re-submission guide. Inbound messages are matched without regard to case, because the guide's own example spells it `claimItemSequence`.
+  - The extension is not in the IG package, so profile validation warns, even under `Enforce`.
+  - Item sequences on payer CommunicationRequests are stored and shown.
+  - Still to confirm with NPHIES.
+- **Reason codes.** They are checked against the `communication-reason` CodeSystem and sent in its spelling. The sandbox now sends `missing-info`, not `Missing-info`.
+- **Re-adjudication appeal.** "Appeal in claim" sends a `communication` with `reasonCode = re-adjudication` and one payload per denied service, and nothing else.
+  - The reissued ClaimResponse (`reissue-reason` is stored) decides each appealed denial: Overturned, Upheld, or split into the recovered and the upheld part.
+  - A `notification` CommunicationRequest upholds the services it names. It needs no reply and is not an open request.
+  - An upheld denial can be appealed again, accepted or written off.
+  - NPHIES's refusal (BV-00148) leaves the denials untouched.
+- **Denial management.** The work queue has the three actions: appeal in the same claim, resubmit (`related = prior`) and write off. Appeals show their method, outcome and recovered amount.
+- **Fixed on the way:**
+  - a withdrawn appeal no longer makes the next appeal's number collide;
+  - a resubmission that fails to send no longer leaves its denials `Appealed`;
+  - a resubmission now carries denials a same-claim appeal upheld.
+- **Sandbox.** It keeps each final claim decision.
+  - `ReadjudicateAs` answers a re-adjudication: `approve` (the default) reissues with the services approved and pays the difference, `uphold` sends the notification, and `none` only acknowledges.
+  - It answers BV-00148 for an unknown or cancelled claim.
+- Authorization #1 and Claims #2 now send an unsolicited communication with an item sequence. They pass against the sandbox, not yet against OBA.
+- **Part 2, still open:** the information-request worklist (queue per hospital, SLA timer, item link), answering on the latest version of a prior-authorization chain, and attaching stored claim documents to a reply.
+
 ## Phase 7: payments and reconciliation (track B6)
 | Item | Work |
 |---|---|

@@ -40,12 +40,33 @@ Prior authorizations use the same statuses. The granted `preAuthRef` and `preAut
 
 A `ClaimDenial` row is created for each adjudicated item that has a reason code or a reduced or zero benefit. Denials are categorised (Contractual, Technical, Duplicate, …) and given an appeal deadline (`Rcm:AppealWindowDays`).
 
-An appeal on a **claim** does the following:
-- clones the claim with `related = prior` and resubmits it (unless `resubmit: false`);
-- optionally sends a Communication with texts and attachments;
-- links the denials to the appeal.
+For each open denial the user can do one of three things (the Denials & appeals screen has a button for each):
 
-When the new version is adjudicated, the appeal and its denials are resolved. Prior-authorization denials are appealed by sending an update (`POST /preauths/{id}/update`).
+- **Appeal in the same claim** (`POST /appeals` with `resubmit: false`, method `Communication`). This follows the Claim Re-submission guide.
+  - It sends a `communication` about the same claim with `reasonCode = re-adjudication`, and one text payload per denied service carrying `extension-ClaimItemSequence`.
+  - The text is the service's own justification (`items`), else the first of `texts`, else the reason. With a single service, attachments are linked to it.
+  - A denial of the whole claim (no item) names every service.
+  - The communication goes first. If NPHIES refuses it (for example BV-00148, a claim that is not posted and active), the appeal is `Failed` and the denials stay as they were.
+  - The service refuses a re-adjudication for a prior authorization (400), and for a claim that is cancelled, answered with errors, superseded or not yet adjudicated (409).
+- **Resubmit** (`resubmit: true`, method `Resubmission`). The claim is cloned with `related = prior` and all its services, then sent. Texts and attachments go in a separate communication. When the new version is adjudicated, the appeal and the original denials are resolved.
+- **Write off**: set the denial to `WrittenOff` (`PATCH /denials/{id}`).
+
+The payer answers a re-adjudication by poll, and `RcmResponseIngestor` applies the answer:
+
+- **A reissued ClaimResponse** (`reissue-reason = adjudication`, stored in `ClaimResponse.ReissueReason`). Each appealed denial is decided:
+  - the service is no longer denied: `Overturned`;
+  - still denied: `Upheld`, and the row stays the record of that denial instead of a new `Open` one;
+  - denied less: split into an `Overturned` row for the recovered amount and an `Upheld` row for the rest.
+- **A `notification` CommunicationRequest with `reasonCode = re-adjudication`.** The services it names (all of them if it names none) become `Upheld`, with the payer's text in the notes. A notification needs no reply, so it is not an open request.
+
+The appeal is then `Decided`:
+- the outcome is `Overturned`, `PartiallyOverturned` or `Upheld`;
+- `recoveredAmount` is the sum of the overturned rows;
+- the explanation is the payer's text.
+
+An upheld denial from a same-claim appeal is still live. It can be appealed again (the level goes up), accepted or written off, and a later resubmission carries it. Appeal numbers count every appeal on the claim, so a withdrawn appeal keeps its number. Prior-authorization denials are appealed by sending an update (`POST /preauths/{id}/update`).
+
+The item link is also available on any communication. `items` are texts about single services, `attachments[].itemSequence` links a document to one service, and each sequence must be a service of the claim. The extension URL `extension-ClaimItemSequence` comes from the ClaimItem guide V1.1. It is not in the IG package (Q1), so profile validation only warns about it, and inbound messages are matched without regard to case.
 
 ## Routes
 
@@ -146,9 +167,9 @@ The header holds a global **hospital + date range** filter, persisted in local s
 | `/rcm/preauths` | Prior authorizations: submit, update, extend, convert to claim, status check, cancel |
 | `/rcm/claims` | Claims: submit, resubmit, link pre-auth, status check, cancel/nullify, and batch submit for selected claims |
 | `/rcm/batches` | Batches, each expandable to its claims |
-| `/rcm/communications` | Insurer CommunicationRequests (respond with attachments) and unsolicited communications |
+| `/rcm/communications` | Insurer CommunicationRequests (respond with attachments; notifications are marked informational) and unsolicited communications, optionally about one service (item sequence) and with a reason code |
 | `/rcm/payments` | Payment reconciliations: detail lines, manual matching, payment notice, discrepancies |
-| `/rcm/denials` | Denial KPIs and breakdowns, the denial work queue, appeals (with attachments and optional resubmission), and withdraw |
+| `/rcm/denials` | Denial KPIs and breakdowns, the denial work queue with three actions (appeal in the same claim with a justification per service, resubmit, write off), appeals with method, outcome and recovered amount, and withdraw |
 | `/data/:table` | Generic explorer for every table: search, column filters, sort, column chooser, CSV export, and a master-detail drawer with child tabs |
 
 Clicking a claim anywhere opens the **claim timeline** drawer. Its tabs show:

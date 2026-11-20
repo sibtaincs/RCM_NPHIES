@@ -56,7 +56,7 @@ The legacy defects listed in the Phase 0 review (`PaymentCalculationEngine`, `Ou
    - Documents are stored on the local filesystem.
 4. **Multi-hospital:** there is one client certificate and one provider licence per deployment.
 5. **HIS integration:** there is no inbound API or adapter, and no outbound notification to a hospital information system.
-6. **NPHIES certification:** see [NPHIES_GAP_ANALYSIS.md](NPHIES_GAP_ANALYSIS.md). 9 of the 25 test cases are blocked, mainly by missing newborn support, the transfer flag on eligibility, references from claims to earlier responses, and advanced authorization cancellation.
+6. **NPHIES certification:** see [NPHIES_GAP_ANALYSIS.md](NPHIES_GAP_ANALYSIS.md). The Eligibility, Authorization and Claims onboarding cases pass against the in-process sandbox, but none has been run against the NPHIES OBA environment. The communication item-sequence extension URL is an interim choice until NPHIES answers Q1.
    - The embedded IG package is `nphies-fs` 1.0.0, with IG V2.6 documents. Confirm the current version on the NPHIES portal.
    - Profile validation defaults to `Warn`.
    - The onboarding test suites have not been run against the NPHIES sandbox.

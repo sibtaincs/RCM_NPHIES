@@ -83,6 +83,39 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     private readonly ConcurrentDictionary<string, bool> _offlinePayers = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Requests the payer pended ("deferred" priority), by request identifier, until the provider communicates.</summary>
     private readonly ConcurrentDictionary<string, PendedRequest> _pended = new(StringComparer.Ordinal);
+    /// <summary>The payer's latest final decision on each claim, by request identifier: what a re-adjudication reopens.</summary>
+    private readonly ConcurrentDictionary<string, Adjudicated> _adjudicated = new(StringComparer.Ordinal);
+    /// <summary>Request identifiers the provider cancelled.</summary>
+    private readonly ConcurrentDictionary<string, bool> _cancelled = new(StringComparer.Ordinal);
+
+    private sealed class Adjudicated
+    {
+        public Adjudicated(NphiesTransportRequest request, MessageHeader header, Claim claim, Decision decision, ClaimResponse response)
+        {
+            Request = request;
+            Header = header;
+            Claim = claim;
+            Decision = decision;
+            Response = response;
+        }
+
+        public NphiesTransportRequest Request { get; }
+        public MessageHeader Header { get; }
+        public Claim Claim { get; }
+        public Decision Decision { get; }
+        public ClaimResponse Response { get; set; }
+        /// <summary>Services the payer approved on re-adjudication.</summary>
+        public HashSet<int> Overturned { get; } = new();
+        public int Answers { get; set; }
+    }
+
+    /// <summary>
+    /// How the payer answers a re-adjudication communication (Claim Re-submission guide): null or "approve" reissues
+    /// the ClaimResponse with the named services approved (<c>reissue-reason = adjudication</c>, step 4.1); "uphold"
+    /// keeps its decision and explains why in a <c>notification</c> CommunicationRequest (step 4.2). Both arrive by poll.
+    /// "none" only acknowledges: the payer is still reviewing (a test can then <see cref="Deliver"/> its own answer).
+    /// </summary>
+    public string? ReadjudicateAs { get; set; }
 
     private sealed class PendedRequest
     {
@@ -368,6 +401,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         if (decision != Decision.Queued && !heldByNphies)
         {
             var final = BuildClaimResponse(claim, decision);
+            Remember(ctx, claim, decision, final);
             EnqueueFollowUps(ctx, claim, final);
             return Message(ctx, responseEvent, final, ctx.Header.Id);
         }
@@ -375,6 +409,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         // NPHIES accepted the message but the payer adjudicates later: reply "queued" now, deliver via poll.
         var deferredDecision = decision != Decision.Queued ? decision : DecideFinal(claim);
         var deferred = BuildClaimResponse(claim, deferredDecision);
+        Remember(ctx, claim, deferredDecision, deferred);
         var deferredMessage = Message(ctx, responseEvent, deferred, ctx.Header.Id);
         var deferredJson = Serializer.SerializeToString(deferredMessage);
         _deferred[ctx.ProviderLicense + "|" + ctx.Header.Id] = deferredJson;
@@ -401,7 +436,9 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             var claim = inner.Entry.Select(e => e.Resource).OfType<Claim>().FirstOrDefault();
             if (claim is null) continue;
             var innerHeader = inner.Entry.Select(e => e.Resource).OfType<MessageHeader>().FirstOrDefault();
-            var response = BuildClaimResponse(claim, DecideFinal(claim));
+            var decision = DecideFinal(claim);
+            var response = BuildClaimResponse(claim, decision);
+            Remember(ctx, claim, decision, response);
             // The payer first acknowledges each claim as queued, then sends its decision; both carry the batch extensions.
             var queued = BuildQueuedResponse(claim);
             foreach (var url in new[] { NphiesExtensions.BatchIdentifier, NphiesExtensions.BatchNumber, NphiesExtensions.BatchPeriod })
@@ -464,22 +501,29 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         return response;
     }
 
-    private static ClaimResponse BuildClaimResponse(Claim claim, Decision decision)
+    /// <param name="overturned">
+    /// Services the payer approved in full on re-adjudication; when set, the header outcome follows the items.
+    /// </param>
+    private static ClaimResponse BuildClaimResponse(Claim claim, Decision decision, ISet<int>? overturned = null, string suffix = "final")
     {
         var h = Hash(Key(claim));
-        var response = NewClaimResponse(claim, "final");
+        var response = NewClaimResponse(claim, suffix);
         var deniedSequence = decision == Decision.Partial && claim.Item.Count > 1
             ? (claim.Item.FirstOrDefault(IsUnlistedDrug) ?? claim.Item.Last()).Sequence
             : null;
         var reason = DenialReasons[h % DenialReasons.Length];
         var totals = new Dictionary<string, decimal>();
+        int deniedItems = 0, reducedItems = 0;
 
         foreach (var item in claim.Item)
         {
             var net = item.Net?.Value ?? (item.UnitPrice?.Value ?? 0m) * (item.Quantity?.Value ?? 1m);
             var tax = ItemMoney(item, NphiesExtensions.Tax) ?? 0m;
-            var denied = decision == Decision.Rejected || (deniedSequence.HasValue && item.Sequence == deniedSequence);
-            var reduced = decision == Decision.Partial && deniedSequence is null; // single-item claim: 70% allowed.
+            var reopened = overturned != null && item.Sequence is { } seq && overturned.Contains(seq);
+            var denied = !reopened && (decision == Decision.Rejected || (deniedSequence.HasValue && item.Sequence == deniedSequence));
+            var reduced = !reopened && decision == Decision.Partial && deniedSequence is null; // single-item claim: 70% allowed.
+            if (denied) deniedItems++;
+            if (reduced) reducedItems++;
 
             var eligibleBase = Math.Max(0m, net - tax);
             var eligible = denied ? 0m : reduced ? Math.Round(eligibleBase * 0.7m, 2) : eligibleBase;
@@ -512,6 +556,10 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             Add(totals, "patientShare", copay);
         }
 
+        if (overturned != null)
+            decision = deniedItems == claim.Item.Count && claim.Item.Count > 0 ? Decision.Rejected
+                : deniedItems + reducedItems > 0 ? Decision.Partial
+                : Decision.Approved;
         var outcome = decision switch { Decision.Rejected => "rejected", Decision.Partial => "partial", _ => "approved" };
         response.Extension.Add(new Extension(NphiesExtensions.AdjudicationOutcome, new CodeableConcept(NphiesCodeSystems.AdjudicationOutcome, outcome)));
         response.Outcome = ClaimProcessingCodes.Complete;
@@ -521,6 +569,8 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             Decision.Partial => $"Partially approved: {reason.Display}.",
             _ => "All services approved.",
         };
+        if (overturned is { Count: > 0 })
+            response.Disposition = $"Re-adjudicated: service {string.Join(", ", overturned.Order())} approved. {response.Disposition}";
         foreach (var (category, amount) in totals)
             response.Total.Add(new ClaimResponse.TotalComponent { Category = Category(category), Amount = Sar(amount) });
 
@@ -572,7 +622,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
             Enqueue(ctx.ProviderLicense, Message(ctx, NphiesMessageEvents.CommunicationRequest, BuildCommunicationRequest(claim), null));
     }
 
-    private static PaymentReconciliation BuildPayment(Claim claim, ClaimResponse response, decimal payable, bool underpay)
+    private static PaymentReconciliation BuildPayment(Claim claim, ClaimResponse response, decimal payable, bool underpay, string detailType = "payment", string suffix = "")
     {
         var component = underpay ? Math.Round(payable * 0.95m, 2) : payable;
         var nphiesFee = -Math.Round(component * 0.01m, 2);
@@ -598,10 +648,10 @@ public sealed class NphiesSandboxTransport : INphiesTransport
                 Type = new CodeableConcept(NphiesCodeSystems.PaymentMethod, "eft"),
             },
         };
-        pr.Identifier.Add(new Identifier(PayerBase + "/paymentreconciliation", $"PR_{key}"));
+        pr.Identifier.Add(new Identifier(PayerBase + "/paymentreconciliation", $"PR_{key}{suffix}"));
         var detail = new PaymentReconciliation.DetailsComponent
         {
-            Type = new CodeableConcept(NphiesCodeSystems.PaymentType, "payment"),
+            Type = new CodeableConcept(NphiesCodeSystems.PaymentType, detailType),
             Request = new ResourceReference { Type = "Claim", Identifier = claim.Identifier.FirstOrDefault() },
             Response = new ResourceReference { Type = "ClaimResponse", Identifier = response.Identifier.FirstOrDefault() },
             Date = today.ToString("yyyy-MM-dd"),
@@ -632,7 +682,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         request.About.Add(new ResourceReference { Type = "Claim", Identifier = claim.Identifier.FirstOrDefault() });
         request.Payload.Add(new CommunicationRequest.PayloadComponent { Content = new FhirString(InformationRequests[h % InformationRequests.Length]) });
         if (claim.Provider != null) request.Recipient.Add(claim.Provider);
-        request.ReasonCode.Add(new CodeableConcept(NphiesCodeSystems.CommunicationReason, "Missing-info"));
+        request.ReasonCode.Add(new CodeableConcept(NphiesCodeSystems.CommunicationReason, NphiesCommunicationReasons.MissingInformation));
         return request;
     }
 
@@ -643,6 +693,7 @@ public sealed class NphiesSandboxTransport : INphiesTransport
         var task = request.Entry.Select(e => e.Resource).OfType<FhirTask>().First();
         var cancel = ctx.Request.EventCode == NphiesMessageEvents.CancelRequest;
         var focusValue = task.Focus?.Identifier?.Value;
+        if (cancel && focusValue != null) _cancelled[focusValue] = true;
         var queued = !cancel && focusValue != null && (_pended.ContainsKey(focusValue) || _queues.TryGetValue(ctx.ProviderLicense, out var q)
                      && q.Any(json => json.Contains(focusValue, StringComparison.Ordinal) && json.Contains("\"ClaimResponse\"", StringComparison.Ordinal)));
 
@@ -721,12 +772,119 @@ public sealed class NphiesSandboxTransport : INphiesTransport
     {
         var communication = request.Entry.Select(e => e.Resource).OfType<Communication>().FirstOrDefault();
         var about = communication?.About.Select(a => a.Identifier?.Value).FirstOrDefault(v => v != null);
+        if (communication != null && communication.ReasonCode.Any(r => r.Coding.Any(c => c.Code == NphiesCommunicationReasons.ReAdjudication)))
+            return ReAdjudicate(ctx, communication, about);
         if (about != null && _pended.TryRemove(about, out var pended))
         {
             Deliver(pended.ProviderLicense, pended.DeferredJson);
             EnqueueFollowUps(new Context(pended.Request, pended.Header), pended.Claim, pended.Final);
         }
         return Message(ctx, NphiesMessageEvents.Acknowledgement, null, ctx.Header.Id);
+    }
+
+    /// <summary>
+    /// A re-adjudication communication (Claim Re-submission guide). NPHIES checks that it is about a claim that was
+    /// posted and is active (BV-00148); the payer then reissues its response or explains in a notification why not.
+    /// </summary>
+    private Bundle ReAdjudicate(Context ctx, Communication communication, string? about)
+    {
+        if (about is null || _cancelled.ContainsKey(about) || !_adjudicated.TryGetValue(about, out var adjudicated))
+            return ErrorAcknowledgement(ctx, "BV-00148", "The provided resource identifier in the about element is invalid");
+
+        if (string.Equals(ReadjudicateAs, "none", StringComparison.OrdinalIgnoreCase))
+            return Message(ctx, NphiesMessageEvents.Acknowledgement, null, ctx.Header.Id);
+        var named = communication.Payload.Select(NphiesResponseParser.ClaimItemSequence).OfType<int>().ToHashSet();
+        if (named.Count == 0) named = adjudicated.Claim.Item.Select(i => i.Sequence).OfType<int>().ToHashSet();
+        var original = new Context(adjudicated.Request, adjudicated.Header);
+
+        Bundle answer;
+        ClaimResponse? previous = null, reissued = null;
+        lock (adjudicated)
+        {
+            var n = ++adjudicated.Answers;
+            if (string.Equals(ReadjudicateAs, "uphold", StringComparison.OrdinalIgnoreCase))
+                answer = Message(original, NphiesMessageEvents.CommunicationRequest, BuildReAdjudicationNotice(adjudicated.Claim, named, n), null);
+            else
+            {
+                previous = adjudicated.Response;
+                adjudicated.Overturned.UnionWith(named);
+                reissued = BuildClaimResponse(adjudicated.Claim, adjudicated.Decision, adjudicated.Overturned, $"reissue{n}");
+                reissued.Extension.Add(new Extension(NphiesExtensions.AdjudicationReissue, new CodeableConcept(NphiesCodeSystems.ReissueReason, "adjudication")));
+                adjudicated.Response = reissued;
+                answer = Message(original, NphiesMessageEvents.ClaimResponse, reissued, adjudicated.Header.Id);
+            }
+        }
+        Enqueue(ctx.ProviderLicense, answer);
+        if (previous != null && reissued != null) EnqueueReissuePayment(original, adjudicated.Claim, previous, reissued);
+        return Message(ctx, NphiesMessageEvents.Acknowledgement, null, ctx.Header.Id);
+    }
+
+    /// <summary>
+    /// The payer pays what the reissue added: an adjustment on top of an earlier payment, or a first payment when it had
+    /// paid nothing (the same rule as <see cref="EnqueueFollowUps"/>).
+    /// </summary>
+    private void EnqueueReissuePayment(Context ctx, Claim claim, ClaimResponse previous, ClaimResponse reissued)
+    {
+        if (claim.Use != ClaimUseCode.Claim || Hash(Key(claim)) % 4 == 3) return;
+        var before = Total(previous, "benefit") + Total(previous, "tax");
+        var after = Total(reissued, "benefit") + Total(reissued, "tax");
+        var paidBefore = Total(previous, "benefit") > 0m;
+        var due = after - (paidBefore ? before : 0m);
+        if (due <= 0m) return;
+        Enqueue(ctx.ProviderLicense, Message(ctx, NphiesMessageEvents.PaymentReconciliation,
+            BuildPayment(claim, reissued, due, underpay: false, detailType: paidBefore ? "adjustment" : "payment", suffix: "_" + reissued.Identifier.First().Value), null));
+    }
+
+    /// <summary>Step 4.2: the payer keeps its decision on the named services and says why.</summary>
+    private static CommunicationRequest BuildReAdjudicationNotice(Claim claim, IEnumerable<int> sequences, int n)
+    {
+        var request = new CommunicationRequest
+        {
+            Id = Guid.NewGuid().ToString(),
+            Meta = Profile(NphiesProfiles.Base + "communication-request"),
+            Status = RequestStatus.Active,
+            Priority = RequestPriority.Routine,
+            Subject = claim.Patient,
+            Sender = claim.Insurer,
+            AuthoredOn = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd"),
+        };
+        request.Identifier.Add(new Identifier(PayerBase + "/communicationrequest", $"CommReq_{Hash(Key(claim))}_readj{n}"));
+        request.Category.Add(new CodeableConcept(NphiesCodeSystems.CommunicationCategory, "notification"));
+        request.About.Add(new ResourceReference { Type = "Claim", Identifier = claim.Identifier.FirstOrDefault() });
+        foreach (var sequence in sequences.Order())
+        {
+            var payload = new CommunicationRequest.PayloadComponent { Content = new FhirString("The provided information does not justify the services.") };
+            payload.Extension.Add(new Extension(NphiesExtensions.ClaimItemSequence, new PositiveInt(sequence)));
+            request.Payload.Add(payload);
+        }
+        if (claim.Provider != null) request.Recipient.Add(claim.Provider);
+        request.ReasonCode.Add(new CodeableConcept(NphiesCodeSystems.CommunicationReason, NphiesCommunicationReasons.ReAdjudication));
+        return request;
+    }
+
+    /// <summary>An acknowledgement carrying an NPHIES validation error (IG: Acknowledgement Message with an OperationOutcome).</summary>
+    private static Bundle ErrorAcknowledgement(Context ctx, string code, string display)
+    {
+        var outcome = new OperationOutcome { Id = Guid.NewGuid().ToString() };
+        outcome.Issue.Add(new OperationOutcome.IssueComponent
+        {
+            Severity = OperationOutcome.IssueSeverity.Error,
+            Code = OperationOutcome.IssueType.BusinessRule,
+            Details = new CodeableConcept(NphiesCodeSystems.AdjudicationError, code, display, null),
+        });
+        var bundle = Message(ctx, NphiesMessageEvents.Acknowledgement, null, ctx.Header.Id);
+        var header = (MessageHeader)bundle.Entry[0].Resource;
+        header.Response!.Code = MessageHeader.ResponseType.FatalError;
+        header.Response.Details = new ResourceReference("urn:uuid:" + outcome.Id);
+        bundle.Entry.Add(new Bundle.EntryComponent { FullUrl = "urn:uuid:" + outcome.Id, Resource = outcome });
+        return bundle;
+    }
+
+    /// <summary>Keeps the payer's final decision on a claim so a re-adjudication communication can reopen it.</summary>
+    private void Remember(Context ctx, Claim claim, Decision decision, ClaimResponse response)
+    {
+        if (claim.Use == ClaimUseCode.Claim && Key(claim) is { Length: > 0 } key)
+            _adjudicated[key] = new Adjudicated(ctx.Request, ctx.Header, claim, decision, response);
     }
 
     /// <summary>

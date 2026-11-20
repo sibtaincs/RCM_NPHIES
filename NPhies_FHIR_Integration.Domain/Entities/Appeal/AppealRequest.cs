@@ -176,6 +176,15 @@ public class AppealRequest : BaseEntity
     public string? InternalReferenceNumber { get; set; }
 
     /// <summary>
+    /// How the appeal reaches the payer: <c>Communication</c> (a re-adjudication communication about the same claim,
+    /// answered by a reissued ClaimResponse) or <c>Resubmission</c> (a new claim with related = prior).
+    /// </summary>
+    public string AppealMethod { get; set; } = "Resubmission";
+
+    /// <summary>The re-adjudication communication that carried the appeal (Communication.Id), when there is one.</summary>
+    public string? CommunicationId { get; set; }
+
+    /// <summary>
     /// Notes about this appeal
     /// </summary>
     public string? Notes { get; set; }

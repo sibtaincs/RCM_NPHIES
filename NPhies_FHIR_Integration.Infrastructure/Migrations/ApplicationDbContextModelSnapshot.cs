@@ -1028,6 +1028,13 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<int>("AppealLevel")
                         .HasColumnType("int");
 
+                    b.Property<string>("AppealMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Resubmission");
+
                     b.Property<string>("AppealNumber")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1061,6 +1068,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
 
                     b.Property<string>("ClaimResponseId")
                         .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CommunicationId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
@@ -3103,6 +3114,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<DateTime?>("ReceivedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ReissueReason")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("RequestIdentifierSystem")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -4033,6 +4048,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<string>("ItemSequences")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("MessageHeaderId")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -4066,6 +4085,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
 
                     b.Property<string>("ProcessingStatus")
                         .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ReasonCode")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
@@ -4162,6 +4185,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<string>("ItemSequences")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("MessageId")
                         .HasMaxLength(100)

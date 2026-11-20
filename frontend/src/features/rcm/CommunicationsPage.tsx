@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Form, Input, Modal, Select, Space, Switch, Table, Tabs, Typography } from 'antd';
+import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { MessageOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -8,6 +8,7 @@ import { rcmApi } from '@/api/endpoints/rcm';
 import { AttachmentPicker, toAttachments } from '@/components/AttachmentPicker/AttachmentPicker';
 import { useGlobalFilters } from '@/hooks/useGlobalFilters';
 import { PERMISSIONS, usePermission } from '@/hooks/usePermission';
+import { COMMUNICATION_REASONS } from '@/types/rcm';
 import type { Communication, CommunicationRequest } from '@/types/rcm';
 import { fmtDate, statusTag } from '@/utils/display';
 import { ClaimTimelineDrawer } from './ClaimTimelineDrawer';
@@ -20,10 +21,16 @@ interface ComposeValues {
   category?: string;
   priority?: string;
   reasonCode?: string;
+  /** The claim service the message is about (extension-ClaimItemSequence). */
+  itemSequence?: number;
 }
 
 const CATEGORIES = ['instruction', 'notification', 'alert', 'reminder'];
 const PRIORITIES = ['routine', 'urgent', 'asap', 'stat'];
+// Re-adjudication is sent from Denials & appeals, which tracks the appeal and its outcome.
+const REASONS = COMMUNICATION_REASONS.filter((r) => r !== 're-adjudication');
+
+const items = (sequences?: number[]) => (sequences?.length ? sequences.map((n) => <Tag key={n}>#{n}</Tag>) : null);
 
 function splitTexts(text?: string): string[] {
   return (text ?? '')
@@ -46,6 +53,9 @@ function ComposeForm({ form, withClaim }: { form: ReturnType<typeof Form.useForm
       <Form.Item name="files" label="Attachments" valuePropName="value">
         <AttachmentPicker />
       </Form.Item>
+      <Form.Item name="itemSequence" label="About service (item sequence)" extra="Optional: links the message and attachments to one service of the claim.">
+        <InputNumber min={1} precision={0} style={{ width: 160 }} />
+      </Form.Item>
       {withClaim && (
         <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
           <Form.Item name="category" label="Category">
@@ -53,6 +63,9 @@ function ComposeForm({ form, withClaim }: { form: ReturnType<typeof Form.useForm
           </Form.Item>
           <Form.Item name="priority" label="Priority">
             <Select allowClear options={PRIORITIES.map((v) => ({ value: v, label: v }))} />
+          </Form.Item>
+          <Form.Item name="reasonCode" label="Reason">
+            <Select allowClear options={REASONS.map((v) => ({ value: v, label: v }))} />
           </Form.Item>
         </Space>
       )}
@@ -81,15 +94,18 @@ export function CommunicationsPage() {
 
   const send = useMutation({
     mutationFn: async (v: ComposeValues) => {
+      const texts = splitTexts(v.text);
+      const seq = v.itemSequence ?? undefined;
       const body = {
         claimId: v.claimId,
-        texts: splitTexts(v.text),
-        attachments: await toAttachments(v.files),
+        texts: seq ? [] : texts,
+        items: seq ? texts.map((text) => ({ sequence: seq, text })) : [],
+        attachments: (await toAttachments(v.files)).map((a) => ({ ...a, itemSequence: seq })),
         category: v.category,
         priority: v.priority,
         reasonCode: v.reasonCode,
       };
-      if (body.texts.length === 0 && body.attachments.length === 0) throw new Error('Enter a message or attach a file.');
+      if (texts.length === 0 && body.attachments.length === 0) throw new Error('Enter a message or attach a file.');
       return respondTo ? rcmApi.communications.respond(respondTo.id, body) : rcmApi.communications.send(body);
     },
     onSuccess: (c) => {
@@ -114,16 +130,18 @@ export function CommunicationsPage() {
     { title: 'Received', dataIndex: 'receivedAt', render: (v) => fmtDate(v, true) },
     { title: 'Identifier', dataIndex: 'identifier' },
     { title: 'Claim', render: (_, r) => (r.claimId ? <a onClick={() => setClaimId(r.claimId!)}>{r.claimIdentifier ?? r.claimId}</a> : r.claimIdentifier) },
-    { title: 'Category', dataIndex: 'category' },
+    { title: 'Category', render: (_, r) => (r.requiresResponse ? r.category : <Tag color="blue" title="Informs only; no reply needed">{r.category}</Tag>) },
+    { title: 'Reason', dataIndex: 'reason' },
+    { title: 'Services', dataIndex: 'itemSequences', render: items },
     { title: 'Priority', dataIndex: 'priority' },
     { title: 'Request', dataIndex: 'payloadText', render: (v) => <Typography.Paragraph ellipsis={{ rows: 2, expandable: true }} style={{ margin: 0, maxWidth: 420 }}>{v}</Typography.Paragraph> },
-    { title: 'Status', render: (_, r) => statusTag(r.isOpen ? 'open' : r.status) },
+    { title: 'Status', render: (_, r) => statusTag(r.isOpen ? 'open' : r.requiresResponse ? r.status : 'informational') },
     { title: 'Responded', dataIndex: 'respondedAt', render: (v) => fmtDate(v, true) },
     {
       title: '',
       render: (_, r) =>
         r.isOpen && (
-          <Button size="small" type="primary" icon={<MessageOutlined />} disabled={!canSend} onClick={() => { form.resetFields(); setRespondTo(r); }}>
+          <Button size="small" type="primary" icon={<MessageOutlined />} disabled={!canSend} onClick={() => { form.resetFields(); form.setFieldsValue({ itemSequence: r.itemSequences.length === 1 ? r.itemSequences[0] : undefined }); setRespondTo(r); }}>
             Respond
           </Button>
         ),
@@ -136,6 +154,8 @@ export function CommunicationsPage() {
     { title: 'Direction', dataIndex: 'direction' },
     { title: 'Claim', dataIndex: 'claimId', render: (v) => v && <a onClick={() => setClaimId(v)}>open</a> },
     { title: 'Solicited', render: (_, r) => (r.communicationRequestId ? 'Yes' : 'No') },
+    { title: 'Reason', dataIndex: 'reasonCode' },
+    { title: 'Services', dataIndex: 'itemSequences', render: items },
     { title: 'Message', dataIndex: 'payloadText', render: (v) => <Typography.Paragraph ellipsis={{ rows: 2, expandable: true }} style={{ margin: 0, maxWidth: 420 }}>{v}</Typography.Paragraph> },
     { title: 'Status', dataIndex: 'status', render: statusTag },
     { title: 'Processing', dataIndex: 'processingStatus', render: statusTag },

@@ -196,6 +196,10 @@ public class Communication : BaseEntity
     /// <summary>JSON array of payloads ({contentString} or {contentAttachment}).</summary>
     public string? PayloadsJson { get; set; }
     public DateTime? SentAt { get; set; }
+    /// <summary>communication-reason code sent in reasonCode, e.g. <c>re-adjudication</c> for an appeal in the same claim.</summary>
+    public string? ReasonCode { get; set; }
+    /// <summary>Comma-separated claim item sequences the payloads refer to (<c>extension-ClaimItemSequence</c>), if any.</summary>
+    public string? ItemSequences { get; set; }
 
     /// <summary>
     /// Get communication summary
