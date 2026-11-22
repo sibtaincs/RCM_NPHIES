@@ -10,6 +10,7 @@ import type {
   ClaimTimeline,
   Communication,
   CommunicationRequest,
+  CommunicationRequestQuery,
   CreateAppealRequest,
   Denial,
   DenialQuery,
@@ -18,6 +19,7 @@ import type {
   DerivedClaimRequest,
   EligibilityCheck,
   EligibilityCheckRequest,
+  InformationRequestSummary,
   OfflineEligibilityRequest,
   AdvancedAuthorization,
   StuckRequest,
@@ -132,8 +134,9 @@ export const rcmApi = {
   },
 
   communications: {
-    requests: (q: RcmQuery & { openOnly?: boolean }) =>
+    requests: (q: CommunicationRequestQuery) =>
       get<RcmPagedResult<CommunicationRequest>>('/rcm/communication-requests', q),
+    requestSummary: (q: RcmQuery) => get<InformationRequestSummary>('/rcm/communication-requests/summary', q),
     respond: (id: string, body: SendCommunicationRequest) =>
       post<Communication>(`/rcm/communication-requests/${id}/respond`, body),
     list: (q: RcmQuery & { claimId?: string }) =>

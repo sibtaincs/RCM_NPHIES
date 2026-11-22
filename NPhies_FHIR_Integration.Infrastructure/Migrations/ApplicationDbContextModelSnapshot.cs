@@ -4152,6 +4152,10 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("AdvancedAuthorizationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Category")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -4170,6 +4174,9 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DueAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("FhirCommunicationRequestJson")
@@ -4239,6 +4246,8 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
 
                     b.HasIndex("AboutIdentifierValue");
 
+                    b.HasIndex("AdvancedAuthorizationId");
+
                     b.HasIndex("ClaimId");
 
                     b.HasIndex("CommunicationRequestId")
@@ -4246,13 +4255,13 @@ namespace NPhies_FHIR_Integration.Infrastructure.Migrations
 
                     b.HasIndex("MessageId");
 
-                    b.HasIndex("RecipientId");
-
                     b.HasIndex("SenderId");
 
                     b.HasIndex("Status");
 
                     b.HasIndex("SubjectPatientId");
+
+                    b.HasIndex("RecipientId", "RespondedCommunicationId", "DueAt");
 
                     b.ToTable("CommunicationRequests");
                 });

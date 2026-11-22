@@ -64,6 +64,32 @@ public sealed class RcmOptions
     /// <summary>Days after a denial during which an appeal/resubmission is allowed.</summary>
     public int AppealWindowDays { get; set; } = 30;
 
+    /// <summary>
+    /// Hours the hospital gives itself to answer a payer's information request, by request priority, when the payer
+    /// sets no date (CommunicationRequest.occurrenceDateTime). NPHIES sets no deadline; these are local targets.
+    /// A priority not listed uses <c>routine</c>.
+    /// </summary>
+    public Dictionary<string, int> InformationRequestResponseHours { get; set; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["routine"] = 48,
+        ["urgent"] = 24,
+        ["asap"] = 8,
+        ["stat"] = 4,
+    };
+
+    /// <summary>An open information request due within this many hours is shown as due soon.</summary>
+    public int InformationRequestDueSoonHours { get; set; } = 8;
+
+    /// <summary>When an information request received at <paramref name="receivedAt"/> is due; null for a notification.</summary>
+    public DateTime? InformationRequestDueAt(DateTime receivedAt, string? priority, string? category, DateTime? payerDate)
+    {
+        if (string.Equals(category, "notification", StringComparison.OrdinalIgnoreCase)) return null;
+        if (payerDate > receivedAt) return payerDate;
+        var hours = InformationRequestResponseHours.TryGetValue(priority ?? "routine", out var h) ? h
+            : InformationRequestResponseHours.TryGetValue("routine", out var r) ? r : 48;
+        return receivedAt.AddHours(Math.Max(1, hours));
+    }
+
     /// <summary>Tolerance (SAR) when matching reconciliation amounts to adjudicated amounts.</summary>
     public decimal PaymentMatchTolerance { get; set; } = 0.01m;
 

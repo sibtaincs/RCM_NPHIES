@@ -189,6 +189,10 @@ public sealed class NphiesCommunicationRequestResult
     public string? Priority { get; init; }
     public string? AboutClaimIdentifier { get; init; }
     public string? AboutClaimIdentifierSystem { get; init; }
+    /// <summary>The type <c>about</c> names: <c>Claim</c>, or <c>ClaimResponse</c> for an advanced authorization.</summary>
+    public string? AboutType { get; init; }
+    /// <summary>When the payer wants the information (<c>occurrenceDateTime</c>, or the end of <c>occurrencePeriod</c>).</summary>
+    public string? Occurrence { get; init; }
     public List<string> PayloadText { get; init; } = new();
     public List<Attachment> PayloadAttachments { get; init; } = new();
     /// <summary>Every payload in order, with the claim item it refers to (<c>extension-ClaimItemSequence</c>), if any.</summary>

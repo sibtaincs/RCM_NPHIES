@@ -68,6 +68,31 @@ An upheld denial from a same-claim appeal is still live. It can be appealed agai
 
 The item link is also available on any communication. `items` are texts about single services, `attachments[].itemSequence` links a document to one service, and each sequence must be a service of the claim. The extension URL `extension-ClaimItemSequence` comes from the ClaimItem guide V1.1. It is not in the IG package (Q1), so profile validation only warns about it, and inbound messages are matched without regard to case.
 
+## Information requests
+
+Payer CommunicationRequests form a worklist per hospital: `RecipientId` is the provider, and `Scope()` restricts non-admin users to their own hospital.
+
+- **Due date (`DueAt`).** NPHIES sets no deadline.
+  - The payer's `occurrenceDateTime` is used when it is later than receipt.
+  - Otherwise the hospital's target for the priority applies: `Rcm:InformationRequestResponseHours` (routine 48, urgent 24, asap 8, stat 4).
+  - A `notification` has no due date. It needs no reply, so it is never open.
+- **Linking.** A request is linked to the claim or prior authorization its `about` names. When it names an advanced authorization, it is linked to that (`AdvancedAuthorizationId`).
+- **Items.** The services a request names (`extension-ClaimItemSequence`) are stored and shown.
+- **Worklist.** `GET /communication-requests` takes `openOnly`, `overdueOnly`, `kind` (Claim, PriorAuthorization, AdvancedAuthorization) and `claimId`.
+  - Waiting requests come first, the most urgent on top.
+  - Each row carries the time left, overdue and due-soon flags (`Rcm:InformationRequestDueSoonHours`), the patient, the payer and the request a reply goes to.
+- **Summary.** `GET /communication-requests/summary` returns open, overdue and due-soon counts. For requests received in the period, it also returns notifications, answered, answered late and the average reply time.
+
+Replies and other communications:
+- **Latest version of a prior authorization chain.** The Follow-up guide v2.2 says a communication about a prior authorization, reply or not, SHALL refer to the latest request of its chain.
+  - `about` is resolved to the newest version sent that is still active (not draft, failed, errored or cancelled).
+  - The worklist shows that version as `replyClaimId`.
+- **About and basedOn.** A reply keeps `about` = the claim and `basedOn` = the CommunicationRequest, as in the IG and docs examples (18b).
+- **Advanced authorization.** A request about an advanced authorization is answered about that authorization, with `basedOn` set.
+- **Stored documents.** `documents` (with an optional `itemSequence`) sends stored claim documents as attachments, so they need not be uploaded again.
+  - They must belong to the claim's hospital and patient, and be 5 MB or less each.
+  - Appeals accept the same `documents`.
+
 ## Routes
 
 | Area | Routes |
@@ -77,7 +102,7 @@ The item link is also available on any communication. `items` are texts about si
 | Prior auth | `GET /api/rcm/preauths`, `POST /api/rcm/preauths/{id}/submit\|update\|extend\|claim\|status-check\|cancel` |
 | Batches | `POST /api/rcm/batches`, `GET /api/rcm/batches`, `GET /api/rcm/batches/{batchId}` |
 | Messages | `POST /api/rcm/messages/poll` (optional filters: count, include or exclude types, period, `focusClaimId`), `POST /api/rcm/messages/{transactionId}/resend` (identical resend after a timeout), `GET /api/rcm/messages/stuck`, `POST /api/rcm/messages/stuck/scan`, `POST /api/rcm/messages/inbound` (raw NPHIES bundle JSON) |
-| Communications | `GET /api/rcm/communication-requests`, `GET /api/rcm/communication-requests/{id}`, `POST /api/rcm/communication-requests/{id}/respond`, `GET /api/rcm/communications`, `POST /api/rcm/communications` |
+| Communications | `GET /api/rcm/communication-requests`, `GET /api/rcm/communication-requests/summary`, `GET /api/rcm/communication-requests/{id}`, `POST /api/rcm/communication-requests/{id}/respond`, `GET /api/rcm/communications`, `POST /api/rcm/communications` |
 | Payments | `GET /api/rcm/payments`, `GET /api/rcm/payments/discrepancies`, `GET /api/rcm/payments/{id}`, `POST /api/rcm/payments/{id}/acknowledge`, `POST /api/rcm/payments/details/{detailId}/match` |
 | Denials | `GET /api/rcm/denials`, `GET /api/rcm/denials/summary`, `GET /api/rcm/denials/{id}`, `PATCH /api/rcm/denials/{id}` |
 | Appeals | `POST /api/rcm/appeals`, `GET /api/rcm/appeals`, `GET /api/rcm/appeals/{id}`, `POST /api/rcm/appeals/{id}/withdraw` |
@@ -107,6 +132,8 @@ List endpoints accept `providerId`, `insurerId`, `patientId`, `status`, `from`, 
 | `MaxPollsPerCycle` | `10` | Polls per provider per cycle while messages keep arriving |
 | `AutoAcknowledgePayments` | `true` | Send payment-notice after ingesting a payment-reconciliation |
 | `AppealWindowDays` | `30` | Appeal deadline after a denial |
+| `InformationRequestResponseHours` | `routine 48, urgent 24, asap 8, stat 4` | Hours to answer a payer information request without a payer date, by priority |
+| `InformationRequestDueSoonHours` | `8` | An open information request due within this many hours is "due soon" |
 | `PaymentMatchTolerance` | `0.01` | SAR tolerance for payment matching |
 | `IdentifierBaseUrl` | `Nphies:Sender:ProviderBaseUrl` | Base for provider identifier systems |
 | `RequireReviewApprovalForClaims` | `true` | Claims (and batches) require approved technical and medical review before sending |
@@ -167,7 +194,7 @@ The header holds a global **hospital + date range** filter, persisted in local s
 | `/rcm/preauths` | Prior authorizations: submit, update, extend, convert to claim, status check, cancel |
 | `/rcm/claims` | Claims: submit, resubmit, link pre-auth, status check, cancel/nullify, and batch submit for selected claims |
 | `/rcm/batches` | Batches, each expandable to its claims |
-| `/rcm/communications` | Insurer CommunicationRequests (respond with attachments; notifications are marked informational) and unsolicited communications, optionally about one service (item sequence) and with a reason code |
+| `/rcm/communications` | Information-request worklist: KPIs (waiting, overdue, due soon, answered late, average reply time), due dates with time left, views for waiting, overdue and all requests, and a filter by claim, prior authorization or advanced authorization. Replies show the version they go to and can attach stored claim documents. Unsolicited communications can be about one service (item sequence) and carry a reason code. |
 | `/rcm/payments` | Payment reconciliations: detail lines, manual matching, payment notice, discrepancies |
 | `/rcm/denials` | Denial KPIs and breakdowns, the denial work queue with three actions (appeal in the same claim with a justification per service, resubmit, write off), appeals with method, outcome and recovered amount, and withdraw |
 | `/data/:table` | Generic explorer for every table: search, column filters, sort, column chooser, CSV export, and a master-detail drawer with child tabs |

@@ -176,7 +176,7 @@ public class RcmReAdjudicationAppealTests
         CollectionAssert.AreEqual(new[] { sequence }, notice.ItemSequences);
         Assert.IsFalse(notice.RequiresResponse);
         Assert.IsFalse(notice.IsOpen);
-        var open = await _host.RunAsync<IRcmCommunicationService, RcmPagedResult<CommunicationRequestDto>>(s => s.ListRequestsAsync(new RcmQuery(), openOnly: true));
+        var open = await _host.RunAsync<IRcmCommunicationService, RcmPagedResult<CommunicationRequestDto>>(s => s.ListRequestsAsync(new CommunicationRequestQuery { OpenOnly = true }));
         Assert.IsFalse(open.Items.Any(r => r.Id == notice.Id), "Notifications are not in the open requests.");
 
         var upheld = (await DenialsAsync(claim.Id)).Single();

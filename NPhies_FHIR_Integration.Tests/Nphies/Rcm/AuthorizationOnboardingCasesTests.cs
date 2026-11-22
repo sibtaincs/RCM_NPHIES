@@ -407,13 +407,21 @@ public class AuthorizationOnboardingCasesTests
 
         // The payer's request for information, and the provider's answer about the authorization.
         var second = await PollAsync(new PollRequestDto { ProviderId = seed.Provider.Id });
-        Assert.AreEqual(1, second.CommunicationRequestIds.Count);
-        var answer = await _host.RunAsync<IRcmCommunicationService, CommunicationDto>(s => s.SendAsync(new SendCommunicationDto
+        var requestId = second.CommunicationRequestIds.Single();
+        var request = await _host.RunAsync<IRcmCommunicationService, CommunicationRequestDto?>(s => s.GetRequestAsync(requestId));
+        Assert.AreEqual(id, request!.AdvancedAuthorizationId, "The request is linked to the authorization it names.");
+        Assert.AreEqual("AdvancedAuthorization", request.Kind);
+        Assert.IsTrue(request.IsOpen);
+        Assert.IsNotNull(request.DueAt);
+        var answer = await _host.RunAsync<IRcmCommunicationService, CommunicationDto>(s => s.RespondAsync(requestId, new SendCommunicationDto
         {
-            AdvancedAuthorizationId = id,
             Texts = { "The patient will attend on the referral date; the requested report is on file." },
         }));
         CollectionAssert.AreEqual(Array.Empty<string>(), answer.Errors);
+        var reply = Sent("communication").Entry.Select(e => e.Resource).OfType<Communication>().Single();
+        Assert.AreEqual("CommReq_APA_1", reply.BasedOn.Single().Identifier.Value);
+        Assert.AreEqual("aa_resp_1", reply.About.Single().Identifier.Value);
+        Assert.IsFalse((await _host.RunAsync<IRcmCommunicationService, CommunicationRequestDto?>(s => s.GetRequestAsync(requestId)))!.IsOpen);
 
         // The payer cancels it by sending it again with reissue reason "cancel".
         _sandbox.Deliver(RcmTestHost.ProviderLicense, RcmRecoupmentAndAdvancedAuthTests.Reissue(apa, "cancel", newResponse: true));

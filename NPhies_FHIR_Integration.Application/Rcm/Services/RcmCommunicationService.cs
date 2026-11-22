@@ -1,9 +1,11 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NPhies_FHIR_Integration.Application.Nphies.Builders;
 using NPhies_FHIR_Integration.Application.Nphies.Constants;
 using NPhies_FHIR_Integration.Application.Nphies.Models;
+using NPhies_FHIR_Integration.Application.Rcm.Documents;
 using NPhies_FHIR_Integration.Application.Rcm.Dtos;
 using NPhies_FHIR_Integration.Domain.Entities;
 using NPhies_FHIR_Integration.Infrastructure.Data.Configurations;
@@ -12,8 +14,11 @@ namespace NPhies_FHIR_Integration.Application.Rcm.Services;
 
 public interface IRcmCommunicationService
 {
-    Task<RcmPagedResult<CommunicationRequestDto>> ListRequestsAsync(RcmQuery query, bool openOnly, CancellationToken ct = default);
+    /// <summary>The information-request worklist: open requests first, by due date.</summary>
+    Task<RcmPagedResult<CommunicationRequestDto>> ListRequestsAsync(CommunicationRequestQuery query, CancellationToken ct = default);
     Task<CommunicationRequestDto?> GetRequestAsync(string id, CancellationToken ct = default);
+    /// <summary>Open, overdue and due-soon counts, and how quickly requests received in the period were answered.</summary>
+    Task<InformationRequestSummaryDto> GetRequestSummaryAsync(RcmQuery query, CancellationToken ct = default);
     Task<RcmPagedResult<CommunicationDto>> ListAsync(RcmQuery query, string? claimId, CancellationToken ct = default);
 
     /// <summary>Solicited communication answering an insurer CommunicationRequest (basedOn).</summary>
@@ -28,39 +33,175 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
     private static readonly HashSet<string> Categories = new(StringComparer.Ordinal) { "alert", "notification", "reminder", "instruction" };
     private const long MaxAttachmentBytes = 5 * 1024 * 1024;
 
+    /// <summary>A version of a prior authorization chain that never became an active request at NPHIES.</summary>
+    private static readonly string[] InactiveVersions =
+    {
+        RcmClaimStatus.Draft, RcmClaimStatus.ValidationFailed, RcmClaimStatus.Error,
+        RcmClaimStatus.CancelRequested, RcmClaimStatus.Cancelled, RcmClaimStatus.Nullified,
+    };
+
     private readonly ApplicationDbContext _db;
     private readonly IRcmInputMapper _mapper;
     private readonly INphiesBundleBuilder _builder;
     private readonly IRcmMessageDispatcher _dispatcher;
+    private readonly IRcmDocumentService _documents;
+    private readonly RcmOptions _options;
 
-    public RcmCommunicationService(ApplicationDbContext db, IRcmInputMapper mapper, INphiesBundleBuilder builder, IRcmMessageDispatcher dispatcher)
+    public RcmCommunicationService(ApplicationDbContext db, IRcmInputMapper mapper, INphiesBundleBuilder builder, IRcmMessageDispatcher dispatcher,
+        IRcmDocumentService documents, IOptions<RcmOptions> options)
     {
         _db = db;
         _mapper = mapper;
         _builder = builder;
         _dispatcher = dispatcher;
+        _documents = documents;
+        _options = options.Value;
     }
 
-    public async Task<RcmPagedResult<CommunicationRequestDto>> ListRequestsAsync(RcmQuery query, bool openOnly, CancellationToken ct = default)
+    private IQueryable<CommunicationRequest> RequestsIn(RcmQuery query)
     {
         var q = _db.CommunicationRequests.AsNoTracking().AsQueryable();
-        // Open = waiting for our reply; a notification only informs (CommunicationRequestDto.RequiresResponse).
-        if (openOnly) q = q.Where(r => r.RespondedCommunicationId == null && r.Status == "active" && (r.Category == null || r.Category != "notification"));
         if (!string.IsNullOrWhiteSpace(query.ProviderId)) q = q.Where(r => r.RecipientId == query.ProviderId);
         if (!string.IsNullOrWhiteSpace(query.InsurerId)) q = q.Where(r => r.SenderId == query.InsurerId);
         if (!string.IsNullOrWhiteSpace(query.PatientId)) q = q.Where(r => r.SubjectPatientId == query.PatientId);
         if (!string.IsNullOrWhiteSpace(query.Status)) q = q.Where(r => r.Status == query.Status);
-        if (query.From.HasValue) q = q.Where(r => r.CreatedAt >= query.From);
-        if (query.To.HasValue) q = q.Where(r => r.CreatedAt <= query.To);
+        if (query.From.HasValue) q = q.Where(r => (r.ReceivedAt ?? r.CreatedAt) >= query.From);
+        if (query.To.HasValue) q = q.Where(r => (r.ReceivedAt ?? r.CreatedAt) <= query.To);
+        return q;
+    }
+
+    /// <summary>Open = waiting for our reply; a notification only informs (CommunicationRequestDto.RequiresResponse).</summary>
+    private static IQueryable<CommunicationRequest> Open(IQueryable<CommunicationRequest> q) =>
+        q.Where(r => r.RespondedCommunicationId == null && r.Status == "active" && (r.Category == null || r.Category != "notification"));
+
+    public async Task<RcmPagedResult<CommunicationRequestDto>> ListRequestsAsync(CommunicationRequestQuery query, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var q = RequestsIn(query);
+        if (query.OpenOnly || query.OverdueOnly) q = Open(q);
+        if (query.OverdueOnly) q = q.Where(r => r.DueAt < now);
+        if (!string.IsNullOrWhiteSpace(query.ClaimId)) q = q.Where(r => r.ClaimId == query.ClaimId);
+        switch (query.Kind?.Trim().ToLowerInvariant())
+        {
+            case "advancedauthorization": q = q.Where(r => r.AdvancedAuthorizationId != null); break;
+            case "priorauthorization": q = q.Where(r => r.ClaimId != null && _db.Claims.Any(c => c.Id == r.ClaimId && c.Use.Contains("preauth"))); break;
+            case "claim": q = q.Where(r => r.ClaimId != null && _db.Claims.Any(c => c.Id == r.ClaimId && !c.Use.Contains("preauth"))); break;
+        }
         var total = await q.CountAsync(ct);
-        var items = await q.OrderByDescending(r => r.ReceivedAt ?? r.CreatedAt).Skip(query.Skip).Take(query.Take).ToListAsync(ct);
-        return new RcmPagedResult<CommunicationRequestDto> { Total = total, Page = Math.Max(1, query.Page), PageSize = query.Take, Items = items.Select(RcmProjections.ToDto).ToList() };
+        // The worklist: waiting requests first, the most urgent on top; then the rest, newest first.
+        var items = await q
+            .OrderBy(r => r.RespondedCommunicationId == null && r.Status == "active" && r.DueAt != null ? 0 : 1)
+            .ThenBy(r => r.DueAt)
+            .ThenByDescending(r => r.ReceivedAt ?? r.CreatedAt)
+            .Skip(query.Skip).Take(query.Take).ToListAsync(ct);
+        return new RcmPagedResult<CommunicationRequestDto> { Total = total, Page = Math.Max(1, query.Page), PageSize = query.Take, Items = await ProjectAsync(items, ct) };
     }
 
     public async Task<CommunicationRequestDto?> GetRequestAsync(string id, CancellationToken ct = default)
     {
         var r = await _db.CommunicationRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
-        return r is null ? null : RcmProjections.ToDto(r);
+        return r is null ? null : (await ProjectAsync(new List<CommunicationRequest> { r }, ct))[0];
+    }
+
+    public async Task<InformationRequestSummaryDto> GetRequestSummaryAsync(RcmQuery query, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var soon = now.AddHours(_options.InformationRequestDueSoonHours);
+        // Open requests count whenever they arrived; the period applies to notifications and answers.
+        var open = Open(RequestsIn(new RcmQuery { ProviderId = query.ProviderId, InsurerId = query.InsurerId, PatientId = query.PatientId }));
+        var period = RequestsIn(query);
+        var answered = await period.Where(r => r.RespondedAt != null)
+            .Select(r => new { Received = r.ReceivedAt ?? r.CreatedAt, Responded = r.RespondedAt!.Value, r.DueAt }).ToListAsync(ct);
+        return new InformationRequestSummaryDto
+        {
+            Open = await open.CountAsync(ct),
+            Overdue = await open.CountAsync(r => r.DueAt < now, ct),
+            DueSoon = await open.CountAsync(r => r.DueAt >= now && r.DueAt <= soon, ct),
+            Notifications = await period.CountAsync(r => r.Category == "notification", ct),
+            Answered = answered.Count,
+            AnsweredLate = answered.Count(a => a.DueAt.HasValue && a.Responded > a.DueAt),
+            AverageResponseHours = answered.Count == 0 ? null : Math.Round(answered.Average(a => (a.Responded - a.Received).TotalHours), 1),
+            DueSoonHours = _options.InformationRequestDueSoonHours,
+        };
+    }
+
+    /// <summary>Adds what the worklist shows: the request named, the one a reply goes to, the parties and the time left.</summary>
+    private async Task<List<CommunicationRequestDto>> ProjectAsync(List<CommunicationRequest> rows, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var claimIds = rows.Where(r => r.ClaimId != null).Select(r => r.ClaimId!).Distinct().ToList();
+        var claims = await _db.Claims.AsNoTracking().Where(c => claimIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.ClaimNumber, c.NphiesStatus, c.Use }).ToDictionaryAsync(c => c.Id, ct);
+        var patientIds = rows.Where(r => r.SubjectPatientId != null).Select(r => r.SubjectPatientId!).Distinct().ToList();
+        var patients = await _db.Patients.AsNoTracking().Where(p => patientIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.FullName, p.FirstName, p.LastName }).ToDictionaryAsync(p => p.Id, ct);
+        var insurerIds = rows.Where(r => r.SenderId != null).Select(r => r.SenderId!).Distinct().ToList();
+        var insurers = await _db.Organizations.AsNoTracking().Where(o => insurerIds.Contains(o.Id)).ToDictionaryAsync(o => o.Id, o => o.OrganizationName, ct);
+
+        var result = new List<CommunicationRequestDto>();
+        foreach (var r in rows)
+        {
+            var dto = RcmProjections.ToDto(r);
+            if (r.ClaimId != null && claims.TryGetValue(r.ClaimId, out var c))
+            {
+                dto.ClaimNumber = c.ClaimNumber;
+                dto.ClaimStatus = c.NphiesStatus;
+                dto.Kind = c.Use.Contains("preauth", StringComparison.OrdinalIgnoreCase) ? "PriorAuthorization" : "Claim";
+                if (dto.IsOpen && dto.Kind == "PriorAuthorization")
+                {
+                    var reply = await LatestVersionIdAsync(r.ClaimId, ct);
+                    dto.ReplyClaimId = reply;
+                    dto.ReplyClaimNumber = reply == r.ClaimId ? c.ClaimNumber
+                        : await _db.Claims.AsNoTracking().Where(x => x.Id == reply).Select(x => x.ClaimNumber).FirstOrDefaultAsync(ct);
+                }
+                else dto.ReplyClaimId = r.ClaimId;
+            }
+            else if (r.AdvancedAuthorizationId != null) dto.Kind = "AdvancedAuthorization";
+            if (r.SubjectPatientId != null && patients.TryGetValue(r.SubjectPatientId, out var p))
+                dto.PatientName = string.IsNullOrWhiteSpace(p.FullName) ? $"{p.FirstName} {p.LastName}".Trim() : p.FullName;
+            if (r.SenderId != null && insurers.TryGetValue(r.SenderId, out var name)) dto.InsurerName = name;
+            if (dto.IsOpen && r.DueAt.HasValue)
+            {
+                dto.HoursLeft = Math.Round((r.DueAt.Value - now).TotalHours, 1);
+                dto.IsOverdue = r.DueAt < now;
+                dto.IsDueSoon = !dto.IsOverdue && r.DueAt <= now.AddHours(_options.InformationRequestDueSoonHours);
+            }
+            result.Add(dto);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Follow-up guide v2.2: every communication about a prior authorization, a reply included, SHALL refer to the
+    /// latest request of its chain (the follow-ups, extensions and amendments all relate to the first one). Versions
+    /// that never became active at NPHIES are skipped. A claim is returned as it is.
+    /// </summary>
+    private async Task<string> LatestVersionIdAsync(string claimId, CancellationToken ct)
+    {
+        var claim = await _db.Claims.AsNoTracking().Include(c => c.RelatedClaims).FirstOrDefaultAsync(c => c.Id == claimId, ct);
+        if (claim is null || !RcmInputMapper.IsPreAuth(claim)) return claimId;
+
+        var root = claim;
+        var seen = new HashSet<string> { claim.Id };
+        for (var depth = 0; depth < 50; depth++)
+        {
+            var parentId = root.RelatedClaims.Where(r => r.ReferencedClaimId != null && r.Relationship is "prior" or "extend")
+                .Select(r => r.ReferencedClaimId!).FirstOrDefault();
+            if (parentId is null || !seen.Add(parentId)) break;
+            var parent = await _db.Claims.AsNoTracking().Include(c => c.RelatedClaims).FirstOrDefaultAsync(c => c.Id == parentId, ct);
+            if (parent is null) break;
+            root = parent;
+        }
+
+        var versions = await _db.ClaimRelatedClaims.AsNoTracking()
+            .Where(r => r.ReferencedClaimId == root.Id && (r.Relationship == "prior" || r.Relationship == "extend"))
+            .Select(r => r.ClaimId).ToListAsync(ct);
+        versions.Add(root.Id);
+        var latest = await _db.Claims.AsNoTracking()
+            .Where(c => versions.Contains(c.Id) && c.SubmittedAt != null && c.ClaimIdentifierValue != null && !InactiveVersions.Contains(c.NphiesStatus))
+            .OrderByDescending(c => c.SubmittedAt).ThenByDescending(c => c.CreatedAt)
+            .Select(c => new { c.Id, c.Use }).ToListAsync(ct);
+        return latest.FirstOrDefault(c => c.Use.Contains("preauth", StringComparison.OrdinalIgnoreCase))?.Id ?? claimId;
     }
 
     public async Task<RcmPagedResult<CommunicationDto>> ListAsync(RcmQuery query, string? claimId, CancellationToken ct = default)
@@ -87,13 +228,19 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             if (previous?.ProcessingStatus == RcmTransactionStatus.Completed)
                 throw RcmWorkflowException.Conflict("This communication request has already been answered.");
         }
-        var claimId = cr.ClaimId ?? request.ClaimId;
-        if (string.IsNullOrWhiteSpace(claimId))
-            throw RcmWorkflowException.Invalid("The communication request is not linked to a claim; pass claimId.");
         if (string.IsNullOrWhiteSpace(cr.IdentifierValue))
             throw RcmWorkflowException.Invalid("The communication request has no identifier to reference.");
 
-        var dto = await SendCoreAsync(claimId!, request, cr, ct);
+        CommunicationDto dto;
+        if (cr.ClaimId is null && (cr.AdvancedAuthorizationId ?? request.AdvancedAuthorizationId) is { } authorizationId)
+            dto = await SendAboutAdvancedAuthorizationAsync(authorizationId, request, cr, ct);
+        else
+        {
+            var claimId = cr.ClaimId ?? request.ClaimId;
+            if (string.IsNullOrWhiteSpace(claimId))
+                throw RcmWorkflowException.Invalid("The communication request is not linked to a claim; pass claimId.");
+            dto = await SendCoreAsync(await LatestVersionIdAsync(claimId!, ct), request, cr, ct);
+        }
         if (dto.ProcessingStatus is RcmTransactionStatus.Completed or RcmTransactionStatus.Queued)
         {
             cr.RespondedCommunicationId = dto.Id;
@@ -105,16 +252,16 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
         return dto;
     }
 
-    public Task<CommunicationDto> SendAsync(SendCommunicationDto request, CancellationToken ct = default)
+    public async Task<CommunicationDto> SendAsync(SendCommunicationDto request, CancellationToken ct = default)
     {
-        if (!string.IsNullOrWhiteSpace(request.AdvancedAuthorizationId)) return SendAboutAdvancedAuthorizationAsync(request, ct);
+        if (!string.IsNullOrWhiteSpace(request.AdvancedAuthorizationId))
+            return await SendAboutAdvancedAuthorizationAsync(request.AdvancedAuthorizationId!, request, null, ct);
         if (string.IsNullOrWhiteSpace(request.ClaimId)) throw RcmWorkflowException.Invalid("claimId or advancedAuthorizationId is required.");
-        return SendCoreAsync(request.ClaimId!, request, null, ct);
+        return await SendCoreAsync(await LatestVersionIdAsync(request.ClaimId!, ct), request, null, ct);
     }
 
-    private async Task<CommunicationDto> SendAboutAdvancedAuthorizationAsync(SendCommunicationDto request, CancellationToken ct)
+    private async Task<CommunicationDto> SendAboutAdvancedAuthorizationAsync(string id, SendCommunicationDto request, CommunicationRequest? basedOn, CancellationToken ct)
     {
-        var id = request.AdvancedAuthorizationId!;
         var auth = await _db.AdvancedAuthorizations.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct)
                    ?? throw RcmWorkflowException.NotFound("Advanced authorization", id);
         if (auth.Status is "Cancelled" or "Superseded")
@@ -137,7 +284,7 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             ClaimIdentifierValue = auth.IdentifierValue,
             SubmittedAt = auth.ReceivedAt,
         };
-        return await SendCoreAsync(id, request, null, ct, carrier);
+        return await SendCoreAsync(id, request, basedOn, ct, carrier);
     }
 
     /// <param name="about">
@@ -148,7 +295,8 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
     {
         var texts = request.Texts.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()).ToList();
         var itemNotes = request.Items.Where(i => !string.IsNullOrWhiteSpace(i.Text)).ToList();
-        if (texts.Count == 0 && itemNotes.Count == 0 && request.Attachments.Count == 0)
+        var documentRefs = request.Documents.Where(d => !string.IsNullOrWhiteSpace(d.DocumentId)).DistinctBy(d => d.DocumentId).ToList();
+        if (texts.Count == 0 && itemNotes.Count == 0 && request.Attachments.Count == 0 && documentRefs.Count == 0)
             throw RcmWorkflowException.Invalid("A communication needs at least one text or attachment payload.");
         var errors = new List<string>();
         foreach (var a in request.Attachments)
@@ -169,7 +317,9 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             if (reason is null)
                 errors.Add($"Unsupported reason code '{request.ReasonCode}'; use one of {string.Join(", ", NphiesCommunicationReasons.All)}.");
         }
-        var sequences = itemNotes.Select(i => i.Sequence).Concat(request.Attachments.Where(a => a.ItemSequence.HasValue).Select(a => a.ItemSequence!.Value)).ToList();
+        var sequences = itemNotes.Select(i => i.Sequence)
+            .Concat(request.Attachments.Where(a => a.ItemSequence.HasValue).Select(a => a.ItemSequence!.Value))
+            .Concat(documentRefs.Where(d => d.ItemSequence.HasValue).Select(d => d.ItemSequence!.Value)).ToList();
         if (sequences.Any(s => s < 1)) errors.Add("Item sequences must be positive.");
         if (errors.Count > 0) throw RcmWorkflowException.Invalid("Invalid communication.", errors);
 
@@ -190,6 +340,7 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             if (unknown.Count > 0)
                 throw RcmWorkflowException.Invalid($"The claim has no service with sequence {string.Join(", ", unknown)}.");
         }
+        var attachments = request.Attachments.Concat(await DocumentAttachmentsAsync(claim, documentRefs, ct)).ToList();
 
         var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
         var entity = new Communication
@@ -214,13 +365,14 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             ClaimId = about is null ? claim.Id : null,
             CommunicationRequestId = basedOn?.Id,
             PayloadContent = texts.FirstOrDefault() ?? itemNotes.FirstOrDefault()?.Text.Trim(),
-            PayloadAttachmentContentType = request.Attachments.FirstOrDefault()?.ContentType,
-            PayloadAttachmentTitle = request.Attachments.FirstOrDefault()?.Title,
+            PayloadAttachmentContentType = attachments.FirstOrDefault()?.ContentType,
+            PayloadAttachmentTitle = attachments.FirstOrDefault()?.Title,
             PayloadsJson = JsonSerializer.Serialize(new
             {
                 texts,
                 items = itemNotes.Select(i => new { sequence = i.Sequence, text = i.Text.Trim() }),
-                attachments = request.Attachments.Select(a => new { a.ContentType, a.Title, a.Url, a.Creation, a.ItemSequence, size = a.Data is null ? 0 : (a.Data.Length * 3 / 4) }),
+                attachments = attachments.Select(a => new { a.ContentType, a.Title, a.Url, a.Creation, a.ItemSequence, size = a.Data is null ? 0 : (a.Data.Length * 3 / 4) }),
+                documents = documentRefs.Select(d => d.DocumentId),
             }),
             ReasonCode = reason,
             ItemSequences = RcmProjections.FormatSequences(sequences),
@@ -244,7 +396,7 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
             Insurer = _mapper.MapOrganization(claim.Insurer, NphiesOrganizationKind.Insurer),
             Payloads = texts.Select(t => new CommunicationPayloadInput { ContentString = t })
                 .Concat(itemNotes.Select(i => new CommunicationPayloadInput { ContentString = i.Text.Trim(), ClaimItemSequence = i.Sequence }))
-                .Concat(request.Attachments.Select(a => new CommunicationPayloadInput
+                .Concat(attachments.Select(a => new CommunicationPayloadInput
                 {
                     ClaimItemSequence = a.ItemSequence,
                     ContentAttachment = new AttachmentInput
@@ -289,6 +441,42 @@ public sealed class RcmCommunicationService : IRcmCommunicationService
         dto.TransactionStatus = dispatch.Status;
         dto.Errors = dispatch.Errors;
         return dto;
+    }
+
+    /// <summary>
+    /// Stored claim documents as attachments: they must belong to the claim's hospital and patient, and stay within the
+    /// attachment size limit.
+    /// </summary>
+    private async Task<List<AttachmentDto>> DocumentAttachmentsAsync(Claim claim, List<CommunicationDocumentDto> refs, CancellationToken ct)
+    {
+        var result = new List<AttachmentDto>();
+        var errors = new List<string>();
+        foreach (var r in refs)
+        {
+            // Scoped to the claim's hospital: another hospital's document reads as not found.
+            var doc = await _documents.GetAsync(r.DocumentId, claim.ProviderId, ct) ?? throw RcmWorkflowException.NotFound("Document", r.DocumentId);
+            if (doc.PatientId != claim.PatientId)
+            {
+                errors.Add($"Document '{doc.Title ?? doc.FileName}' belongs to another patient.");
+                continue;
+            }
+            var content = await _documents.DownloadAsync(r.DocumentId, original: false, claim.ProviderId, ct) ?? throw RcmWorkflowException.NotFound("Document", r.DocumentId);
+            if (content.Data.LongLength > MaxAttachmentBytes)
+            {
+                errors.Add($"Document '{doc.Title ?? doc.FileName}' exceeds 5 MB.");
+                continue;
+            }
+            result.Add(new AttachmentDto
+            {
+                ContentType = content.ContentType,
+                Title = string.IsNullOrWhiteSpace(doc.Title) ? content.FileName : doc.Title,
+                Data = Convert.ToBase64String(content.Data),
+                Creation = doc.ServiceDate ?? doc.InvoiceDate ?? DateTime.UtcNow,
+                ItemSequence = r.ItemSequence,
+            });
+        }
+        if (errors.Count > 0) throw RcmWorkflowException.Invalid("Some documents cannot be sent.", errors);
+        return result;
     }
 
     /// <summary>

@@ -307,10 +307,17 @@ public sealed class RcmCommunicationsController : RcmControllerBase
     private readonly IRcmCommunicationService _service;
     public RcmCommunicationsController(IRcmCommunicationService service) => _service = service;
 
+    /// <summary>The information-request worklist (openOnly, overdueOnly, kind, claimId), open requests first by due date.</summary>
     [HttpGet("communication-requests")]
     [HasPermission(Permissions.ClaimsRead)]
-    public async Task<ActionResult<RcmPagedResult<CommunicationRequestDto>>> ListRequests([FromQuery] RcmQuery query, [FromQuery] bool openOnly = false, CancellationToken ct = default)
-        => Ok(await _service.ListRequestsAsync(Scope(query), openOnly, ct));
+    public async Task<ActionResult<RcmPagedResult<CommunicationRequestDto>>> ListRequests([FromQuery] CommunicationRequestQuery query, CancellationToken ct = default)
+        => Ok(await _service.ListRequestsAsync(Scope(query), ct));
+
+    /// <summary>Open, overdue and due-soon counts for the caller's hospital, and response times in the period.</summary>
+    [HttpGet("communication-requests/summary")]
+    [HasPermission(Permissions.ClaimsRead)]
+    public async Task<ActionResult<InformationRequestSummaryDto>> RequestSummary([FromQuery] RcmQuery query, CancellationToken ct = default)
+        => Ok(await _service.GetRequestSummaryAsync(Scope(query), ct));
 
     [HttpGet("communication-requests/{id}")]
     [HasPermission(Permissions.ClaimsRead)]

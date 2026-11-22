@@ -137,6 +137,13 @@ public class CommunicationRequest : BaseEntity
     public DateTime? RespondedAt { get; set; }
     /// <summary>Comma-separated claim item sequences the payload refers to (<c>extension-ClaimItemSequence</c>), if any.</summary>
     public string? ItemSequences { get; set; }
+    /// <summary>
+    /// When the reply is due: the payer's <c>occurrenceDateTime</c> when it is later than receipt, else receipt plus the
+    /// hospital's target for the priority (<c>Rcm:InformationRequestResponseHours</c>). Null for a notification.
+    /// </summary>
+    public DateTime? DueAt { get; set; }
+    /// <summary>The advanced authorization the request is about, when <c>about</c> names one instead of a claim.</summary>
+    public string? AdvancedAuthorizationId { get; set; }
 
     /// <summary>
     /// Get request summary
