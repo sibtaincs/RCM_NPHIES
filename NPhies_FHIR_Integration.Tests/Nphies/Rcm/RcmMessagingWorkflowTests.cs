@@ -228,7 +228,7 @@ public class RcmMessagingWorkflowTests
         var cr = await _host.RunAsync<IRcmCommunicationService, CommunicationRequestDto?>(s => s.GetRequestAsync(crId));
         Assert.AreEqual(claim.Id, cr!.ClaimId);
         Assert.IsFalse(string.IsNullOrEmpty(cr.PayloadText));
-        var open = await _host.RunAsync<IRcmCommunicationService, RcmPagedResult<CommunicationRequestDto>>(s => s.ListRequestsAsync(new RcmQuery(), true));
+        var open = await _host.RunAsync<IRcmCommunicationService, RcmPagedResult<CommunicationRequestDto>>(s => s.ListRequestsAsync(new CommunicationRequestQuery { OpenOnly = true }));
         Assert.AreEqual(1, open.Total);
 
         var reply = await _host.RunAsync<IRcmCommunicationService, CommunicationDto>(s => s.RespondAsync(crId, new SendCommunicationDto
@@ -244,7 +244,7 @@ public class RcmMessagingWorkflowTests
 
         var answered = await _host.RunAsync<IRcmCommunicationService, CommunicationRequestDto?>(s => s.GetRequestAsync(crId));
         Assert.AreEqual(reply.Id, answered!.RespondedCommunicationId);
-        var stillOpen = await _host.RunAsync<IRcmCommunicationService, RcmPagedResult<CommunicationRequestDto>>(s => s.ListRequestsAsync(new RcmQuery(), true));
+        var stillOpen = await _host.RunAsync<IRcmCommunicationService, RcmPagedResult<CommunicationRequestDto>>(s => s.ListRequestsAsync(new CommunicationRequestQuery { OpenOnly = true }));
         Assert.AreEqual(0, stillOpen.Total);
     }
 

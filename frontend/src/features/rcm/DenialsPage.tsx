@@ -10,6 +10,7 @@ import { useGlobalFilters } from '@/hooks/useGlobalFilters';
 import { PERMISSIONS, usePermission } from '@/hooks/usePermission';
 import type { Appeal, Breakdown, Denial } from '@/types/rcm';
 import { fmtDate, fmtMoney, statusTag } from '@/utils/display';
+import { ClaimDocumentPicker } from './ClaimDocumentPicker';
 import { ClaimTimelineDrawer } from './ClaimTimelineDrawer';
 import { InsurerSelect, Kpi, PageHeader, showError } from './shared';
 
@@ -52,6 +53,7 @@ interface AppealValues {
   /** Re-adjudication: justification per service, keyed by item sequence. */
   items?: Record<string, string | undefined>;
   files?: UploadFile[];
+  documentIds?: string[];
 }
 
 export function DenialsPage() {
@@ -124,6 +126,7 @@ export function DenialsPage() {
             ? itemSequences.filter((s) => v.items?.[s]?.trim()).map((s) => ({ sequence: s, text: v.items![s]!.trim() }))
             : [],
         attachments: await toAttachments(v.files),
+        documents: (v.documentIds ?? []).map((documentId) => ({ documentId })),
         resubmit: appealMode === 'resubmission',
       }),
     onSuccess: (a) => {
@@ -405,9 +408,12 @@ export function DenialsPage() {
                 </Form.Item>
               );
             })}
+          <Form.Item name="documentIds" label="Stored claim documents">
+            <ClaimDocumentPicker claimId={selected[0]?.claimId} />
+          </Form.Item>
           <Form.Item
             name="files"
-            label="Supporting documents"
+            label="Upload supporting documents"
             valuePropName="value"
             extra={appealMode === 'reAdjudication' && itemSequences.length === 1 ? `Linked to service #${itemSequences[0]}.` : undefined}
           >

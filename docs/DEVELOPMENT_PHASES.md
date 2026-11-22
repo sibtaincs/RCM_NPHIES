@@ -379,7 +379,18 @@ CI builds and tests, the repository is cleaned up, and the status is honest. See
   - `ReadjudicateAs` answers a re-adjudication: `approve` (the default) reissues with the services approved and pays the difference, `uphold` sends the notification, and `none` only acknowledges.
   - It answers BV-00148 for an unknown or cancelled claim.
 - Authorization #1 and Claims #2 now send an unsolicited communication with an item sequence. They pass against the sandbox, not yet against OBA.
-- **Part 2, still open:** the information-request worklist (queue per hospital, SLA timer, item link), answering on the latest version of a prior-authorization chain, and attaching stored claim documents to a reply.
+**Status: part 2 implemented** on `phase-6/information-requests` (tests in `RcmInformationRequestWorklistTests`, and Authorization #10).
+- **Information-request worklist.** Payer requests are queued per hospital with a due date (`DueAt`).
+  - NPHIES sets no deadline, so the due date is the payer's `occurrenceDateTime` when it is later than receipt, else the hospital's target by priority: `Rcm:InformationRequestResponseHours`, routine 48, urgent 24, asap 8, stat 4 hours.
+  - Notifications have no due date.
+  - The list filters by waiting, overdue, kind and claim, with waiting requests first by due date.
+  - A summary gives open, overdue, due soon, answered, answered late and the average reply time.
+  - Existing waiting requests get a 48-hour due date in the migration.
+- **Linking.** A request about an advanced authorization is linked to it and answered as a reply (`basedOn`). Authorization #10 now replies to the APA's request instead of writing unprompted.
+- **Latest version.** Every communication about a prior authorization, reply or not, goes to the latest active version of its chain, as the Follow-up guide v2.2 says the provider SHALL do. The worklist shows that version.
+- **Stored documents.** Claim documents can be attached by id, with an optional item. They must belong to the claim's hospital and patient and be at most 5 MB. Replies, unsolicited communications and appeals all accept them.
+- **Kept as is:** a reply's `about` stays the claim, with `basedOn` = the CommunicationRequest. The IG text says to name the request in `about`, but `about` is 1..1, and the IG's and the docs' solicited examples (Communication-895609, 18b) use about = Claim with basedOn.
+- Phase 6 is complete against the sandbox. Still open: confirming Q1 with NPHIES, and running the communication cases against OBA.
 
 ## Phase 7: payments and reconciliation (track B6)
 | Item | Work |

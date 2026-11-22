@@ -333,6 +333,12 @@ export interface CommunicationItemNote {
   text: string;
 }
 
+/** A stored claim document sent as an attachment. */
+export interface CommunicationDocument {
+  documentId: string;
+  itemSequence?: number;
+}
+
 /** NPHIES communication-reason codes. */
 export const COMMUNICATION_REASONS = ['missing-info', 'missing-attach', 'info-correct', 're-adjudication'] as const;
 
@@ -344,6 +350,8 @@ export interface SendCommunicationRequest {
   /** Texts about single services of the claim. */
   items?: CommunicationItemNote[];
   attachments: Attachment[];
+  /** Stored documents of the claim's patient. */
+  documents?: CommunicationDocument[];
   category?: string;
   priority?: string;
   reasonCode?: string;
@@ -357,17 +365,53 @@ export interface CommunicationRequest {
   priority?: string | null;
   claimId?: string | null;
   claimIdentifier?: string | null;
+  claimNumber?: string | null;
+  claimStatus?: string | null;
+  /** PriorAuthorization, Claim or AdvancedAuthorization. */
+  kind?: string | null;
+  advancedAuthorizationId?: string | null;
+  /** The request a reply is about: the latest version of a prior authorization chain. */
+  replyClaimId?: string | null;
+  replyClaimNumber?: string | null;
+  patientId?: string | null;
+  patientName?: string | null;
+  insurerId?: string | null;
+  insurerName?: string | null;
   payloadText?: string | null;
   payloads?: unknown;
   reason?: string | null;
   /** Claim services the payer's request refers to. */
   itemSequences: number[];
   receivedAt?: string | null;
+  /** The payer's date, else the hospital's target for the priority; null for a notification. */
+  dueAt?: string | null;
+  hoursLeft?: number | null;
+  isOverdue: boolean;
+  isDueSoon: boolean;
   respondedCommunicationId?: string | null;
   respondedAt?: string | null;
+  answeredLate: boolean;
   /** False for a notification, which only informs. */
   requiresResponse: boolean;
   isOpen: boolean;
+}
+
+export interface CommunicationRequestQuery extends RcmQuery {
+  openOnly?: boolean;
+  overdueOnly?: boolean;
+  kind?: string;
+  claimId?: string;
+}
+
+export interface InformationRequestSummary {
+  open: number;
+  overdue: number;
+  dueSoon: number;
+  notifications: number;
+  answered: number;
+  answeredLate: number;
+  averageResponseHours?: number | null;
+  dueSoonHours: number;
 }
 
 export interface Communication {
@@ -488,6 +532,7 @@ export interface CreateAppealRequest {
   /** Re-adjudication only: a justification per appealed service. */
   items?: CommunicationItemNote[];
   attachments: Attachment[];
+  documents?: CommunicationDocument[];
   /** true: a new claim related to this one; false: a re-adjudication communication about the same claim. */
   resubmit: boolean;
 }

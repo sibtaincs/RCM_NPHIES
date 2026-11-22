@@ -333,6 +333,13 @@ public sealed class NphiesResponseParser : INphiesResponseParser
             Priority = request.PriorityElement?.ObjectValue as string,
             AboutClaimIdentifier = about?.Identifier?.Value,
             AboutClaimIdentifierSystem = about?.Identifier?.System,
+            AboutType = about?.Type,
+            Occurrence = request.Occurrence switch
+            {
+                FhirDateTime d => d.Value,
+                Period p => p.End ?? p.Start,
+                _ => null,
+            },
             PayloadText = request.Payload.Select(p => (p.Content as FhirString)?.Value).OfType<string>().ToList(),
             PayloadAttachments = request.Payload.Select(p => p.Content as Attachment).OfType<Attachment>().ToList(),
             Payloads = request.Payload.Select(p => new NphiesCommunicationPayload

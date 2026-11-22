@@ -236,13 +236,13 @@ public sealed class RcmAppealService : IRcmAppealService
         await _db.SaveChangesAsync(ct);
 
         string? communicationId = null;
-        if (request.Texts.Count > 0 || request.Attachments.Count > 0)
+        if (request.Texts.Count > 0 || request.Attachments.Count > 0 || request.Documents.Count > 0)
         {
             var aboutClaimId = resubmissionId != null && appeal.AppealStatus == "Submitted" ? resubmissionId : claim.Id;
             try
             {
                 var texts = request.Texts.Count > 0 ? request.Texts : new List<string> { request.Reason };
-                var comm = await _communications.SendAsync(new SendCommunicationDto { ClaimId = aboutClaimId, Texts = texts, Attachments = request.Attachments, Category = "instruction" }, ct);
+                var comm = await _communications.SendAsync(new SendCommunicationDto { ClaimId = aboutClaimId, Texts = texts, Attachments = request.Attachments, Documents = request.Documents, Category = "instruction" }, ct);
                 communicationId = comm.Id;
                 errors.AddRange(comm.Errors);
             }
@@ -292,6 +292,11 @@ public sealed class RcmAppealService : IRcmAppealService
             {
                 ContentType = a.ContentType, Title = a.Title, Data = a.Data, Url = a.Url, Creation = a.Creation,
                 ItemSequence = a.ItemSequence ?? (sequences.Count == 1 ? sequences[0] : null),
+            }).ToList(),
+            Documents = request.Documents.Select(d => new CommunicationDocumentDto
+            {
+                DocumentId = d.DocumentId,
+                ItemSequence = d.ItemSequence ?? (sequences.Count == 1 ? sequences[0] : null),
             }).ToList(),
         };
     }

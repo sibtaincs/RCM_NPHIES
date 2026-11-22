@@ -177,8 +177,12 @@ public class RcmColumnsConfiguration :
         b.Property(x => x.Reason).HasMaxLength(500);
         b.Property(x => x.RespondedCommunicationId).HasMaxLength(100);
         b.Property(x => x.ItemSequences).HasMaxLength(200);
+        b.Property(x => x.AdvancedAuthorizationId).HasMaxLength(100);
         b.HasIndex(x => x.ClaimId);
         b.HasIndex(x => x.MessageId);
+        b.HasIndex(x => x.AdvancedAuthorizationId);
+        // The worklist: open requests of a hospital by due date.
+        b.HasIndex(x => new { x.RecipientId, x.RespondedCommunicationId, x.DueAt });
     }
 }
 

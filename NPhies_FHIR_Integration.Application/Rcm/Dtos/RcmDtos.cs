@@ -602,6 +602,14 @@ public sealed class AttachmentDto
     public int? ItemSequence { get; set; }
 }
 
+/// <summary>A stored claim document sent as a Communication attachment (Claim documents, <c>api/rcm/documents</c>).</summary>
+public sealed class CommunicationDocumentDto
+{
+    public string DocumentId { get; set; } = string.Empty;
+    /// <summary>The claim item the document supports; sent as <c>extension-ClaimItemSequence</c>.</summary>
+    public int? ItemSequence { get; set; }
+}
+
 /// <summary>A text payload about one claim item (Communication.payload with <c>extension-ClaimItemSequence</c>).</summary>
 public sealed class CommunicationItemNoteDto
 {
@@ -622,6 +630,8 @@ public sealed class SendCommunicationDto
     /// <summary>Texts about single claim items; each must be a sequence of the claim's items.</summary>
     public List<CommunicationItemNoteDto> Items { get; set; } = new();
     public List<AttachmentDto> Attachments { get; set; } = new();
+    /// <summary>Stored documents of the claim's patient and hospital, sent as attachments.</summary>
+    public List<CommunicationDocumentDto> Documents { get; set; } = new();
     public string? Category { get; set; }
     public string Priority { get; set; } = "routine";
     /// <summary>
@@ -640,20 +650,69 @@ public sealed class CommunicationRequestDto
     public string? Priority { get; set; }
     public string? ClaimId { get; set; }
     public string? ClaimIdentifier { get; set; }
+    public string? ClaimNumber { get; set; }
+    public string? ClaimStatus { get; set; }
+    /// <summary>What the request is about: PriorAuthorization, Claim or AdvancedAuthorization (null when not matched).</summary>
+    public string? Kind { get; set; }
+    public string? AdvancedAuthorizationId { get; set; }
+    /// <summary>
+    /// The request a reply is about: the latest version of a prior authorization chain (Follow-up guide v2.2), which
+    /// may be newer than the one the payer named.
+    /// </summary>
+    public string? ReplyClaimId { get; set; }
+    public string? ReplyClaimNumber { get; set; }
+    public string? PatientId { get; set; }
+    public string? PatientName { get; set; }
+    public string? InsurerId { get; set; }
+    public string? InsurerName { get; set; }
     public string? PayloadText { get; set; }
     public object? Payloads { get; set; }
     public string? Reason { get; set; }
     /// <summary>Claim items the payer's request refers to (<c>extension-ClaimItemSequence</c>).</summary>
     public List<int> ItemSequences { get; set; } = new();
     public DateTime? ReceivedAt { get; set; }
+    /// <summary>When the reply is due (the payer's date, else the hospital's target for the priority); null for a notification.</summary>
+    public DateTime? DueAt { get; set; }
+    /// <summary>Hours left until <see cref="DueAt"/> for an open request; negative when overdue.</summary>
+    public double? HoursLeft { get; set; }
+    public bool IsOverdue { get; set; }
+    public bool IsDueSoon { get; set; }
     public string? RespondedCommunicationId { get; set; }
     public DateTime? RespondedAt { get; set; }
+    /// <summary>Answered after <see cref="DueAt"/>.</summary>
+    public bool AnsweredLate => RespondedAt.HasValue && DueAt.HasValue && RespondedAt > DueAt;
     /// <summary>
     /// A <c>notification</c> only informs the provider, for example why a re-adjudication appeal was not accepted;
     /// it needs no reply.
     /// </summary>
     public bool RequiresResponse => !string.Equals(Category, "notification", StringComparison.OrdinalIgnoreCase);
     public bool IsOpen => RespondedAt is null && RequiresResponse && string.Equals(Status, "active", StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>The information-request worklist (payer CommunicationRequests), scoped to the caller's hospital.</summary>
+public sealed class CommunicationRequestQuery : RcmQuery
+{
+    /// <summary>Only requests waiting for a reply (active, not answered, not a notification).</summary>
+    public bool OpenOnly { get; set; }
+    /// <summary>Only open requests past their due date.</summary>
+    public bool OverdueOnly { get; set; }
+    /// <summary>PriorAuthorization, Claim or AdvancedAuthorization.</summary>
+    public string? Kind { get; set; }
+    public string? ClaimId { get; set; }
+}
+
+public sealed class InformationRequestSummaryDto
+{
+    public int Open { get; set; }
+    public int Overdue { get; set; }
+    public int DueSoon { get; set; }
+    /// <summary>Notifications received in the period (they need no reply).</summary>
+    public int Notifications { get; set; }
+    public int Answered { get; set; }
+    public int AnsweredLate { get; set; }
+    /// <summary>Average hours from receipt to reply, over the answered requests.</summary>
+    public double? AverageResponseHours { get; set; }
+    public int DueSoonHours { get; set; }
 }
 
 public sealed class CommunicationDto
@@ -814,6 +873,8 @@ public sealed class CreateAppealDto
     /// </summary>
     public List<CommunicationItemNoteDto> Items { get; set; } = new();
     public List<AttachmentDto> Attachments { get; set; } = new();
+    /// <summary>Stored claim documents sent with the justification.</summary>
+    public List<CommunicationDocumentDto> Documents { get; set; } = new();
     /// <summary>
     /// true (default): resubmit the claim as a new claim (related = prior) with all its services.
     /// false: appeal inside the same claim with a re-adjudication communication naming the denied services; the payer

@@ -812,7 +812,13 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
         if (existing != null) return (RcmEntityTypes.CommunicationRequest, existing.Id);
 
         var claim = await FindClaimAsync(null, cr.AboutClaimIdentifierSystem, cr.AboutClaimIdentifier, ct);
+        // A request about an advanced authorization names its identifier (IG 7.9.1).
+        var authorization = claim is not null || string.IsNullOrWhiteSpace(cr.AboutClaimIdentifier) ? null
+            : await _db.AdvancedAuthorizations.Where(a => a.IdentifierValue == cr.AboutClaimIdentifier)
+                .OrderBy(a => a.IdentifierSystem == cr.AboutClaimIdentifierSystem ? 0 : 1).ThenByDescending(a => a.ReceivedAt)
+                .FirstOrDefaultAsync(ct);
         var resource = response.Bundle?.Entry.Select(e => e.Resource).OfType<Hl7.Fhir.Model.CommunicationRequest>().FirstOrDefault();
+        var receivedAt = DateTime.UtcNow;
         var entity = new CommunicationRequestEntity
         {
             CommunicationRequestId = Truncate(key, 100)!,
@@ -821,7 +827,7 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
             Status = cr.Status ?? "active",
             Category = cr.Category,
             Priority = cr.Priority,
-            AboutResourceType = "Claim",
+            AboutResourceType = authorization is null ? "Claim" : cr.AboutType ?? "ClaimResponse",
             AboutIdentifierSystem = cr.AboutClaimIdentifierSystem,
             AboutIdentifierValue = cr.AboutClaimIdentifier,
             PayloadContent = string.Join("\n", cr.PayloadText),
@@ -835,11 +841,13 @@ public sealed class RcmResponseIngestor : IRcmResponseIngestor
             Reason = cr.Reason,
             ItemSequences = RcmProjections.FormatSequences(cr.ItemSequences),
             ClaimId = claim?.Id,
-            SubjectPatientId = claim?.PatientId,
-            SenderId = claim?.InsurerId,
-            RecipientId = claim?.ProviderId,
+            AdvancedAuthorizationId = authorization?.Id,
+            SubjectPatientId = claim?.PatientId ?? authorization?.PatientId,
+            SenderId = claim?.InsurerId ?? authorization?.InsurerId,
+            RecipientId = claim?.ProviderId ?? authorization?.ServiceProviderId,
             MessageId = response.MessageId,
-            ReceivedAt = DateTime.UtcNow,
+            ReceivedAt = receivedAt,
+            DueAt = _options.InformationRequestDueAt(receivedAt, cr.Priority, cr.Category, ParseDate(cr.Occurrence)),
             FhirCommunicationRequestJson = resource is null ? null : Serializer.SerializeToString(resource),
         };
         _db.CommunicationRequests.Add(entity);
